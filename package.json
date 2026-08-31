@@ -1,0 +1,8 @@
+{
+  "name": "noirtv",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --test test/"
+  }
+}
