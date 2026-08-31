@@ -1,0 +1,444 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Noir TV - Live Stream TV</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <style>
+    body {
+      font-family: 'Plus Jakarta Sans', sans-serif;
+      background-color: #0b0f19;
+      color: #f3f4f6;
+    }
+    .custom-scrollbar::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    .custom-scrollbar::-webkit-scrollbar-track {
+      background: #111827;
+    }
+    .custom-scrollbar::-webkit-scrollbar-thumb {
+      background: #374151;
+      border-radius: 9999px;
+    }
+    .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+      background: #4b5563;
+    }
+    .glass {
+      background: rgba(17, 24, 39, 0.75);
+      backdrop-filter: blur(12px);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+    }
+    .channel-card:hover .play-badge {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  </style>
+</head>
+<body class="min-h-screen flex flex-col antialiased selection:bg-indigo-500 selection:text-white">
+
+  <!-- Header -->
+  <header class="sticky top-0 z-40 glass border-b border-gray-800/80 px-4 lg:px-8 py-3.5 flex items-center justify-between shadow-xl">
+    <div class="flex items-center gap-3">
+      <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-indigo-600 via-indigo-500 to-cyan-400 flex items-center justify-center shadow-lg shadow-indigo-500/25">
+        <i data-lucide="tv" class="w-5 h-5 text-white"></i>
+      </div>
+      <div>
+        <div class="flex items-center gap-2">
+          <span class="font-extrabold text-xl tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-white via-gray-200 to-indigo-300">Noir TV</span>
+          <span class="px-2 py-0.5 text-[10px] font-bold bg-indigo-500/20 text-indigo-400 border border-indigo-500/30 rounded-full">LIVE</span>
+        </div>
+        <p class="text-xs text-gray-400 font-medium">Free Global & Indonesian Live IPTV Streams</p>
+      </div>
+    </div>
+
+    <!-- Search & Filters -->
+    <div class="flex items-center gap-3 w-full max-w-md ml-4">
+      <div class="relative w-full">
+        <i data-lucide="search" class="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400"></i>
+        <input 
+          type="text" 
+          id="searchInput" 
+          placeholder="Cari saluran TV atau negara..." 
+          class="w-full bg-gray-900/90 border border-gray-700/70 focus:border-indigo-500 rounded-xl pl-10 pr-4 py-2 text-sm text-gray-200 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 transition duration-200"
+        >
+      </div>
+    </div>
+  </header>
+
+  <!-- Main Content Layout -->
+  <main class="flex-1 max-w-7xl w-full mx-auto p-4 lg:p-6 grid grid-cols-1 lg:grid-cols-12 gap-6">
+    
+    <!-- Player Column (8 cols on desktop) -->
+    <div class="lg:col-span-8 flex flex-col gap-4">
+      
+      <!-- Video Container -->
+      <div class="relative aspect-video bg-black rounded-2xl overflow-hidden border border-gray-800 shadow-2xl group flex items-center justify-center">
+        <video 
+          id="videoPlayer" 
+          controls 
+          autoplay 
+          playsinline 
+          class="w-full h-full object-contain"
+        ></video>
+
+        <!-- Loading Overlay -->
+        <div id="playerLoading" class="absolute inset-0 bg-black/80 flex flex-col items-center justify-center gap-3 z-10 hidden">
+          <div class="w-10 h-10 border-4 border-indigo-500/20 border-t-indigo-500 rounded-full animate-spin"></div>
+          <p class="text-xs text-gray-300 font-medium tracking-wide">Memuat siaran live stream...</p>
+        </div>
+
+        <!-- Error Overlay -->
+        <div id="playerError" class="absolute inset-0 bg-gray-950/95 flex flex-col items-center justify-center p-6 text-center gap-3 z-20 hidden">
+          <div class="w-12 h-12 rounded-full bg-rose-500/10 text-rose-400 flex items-center justify-center mb-1">
+            <i data-lucide="alert-triangle" class="w-6 h-6"></i>
+          </div>
+          <h3 class="text-base font-semibold text-white">Saluran Offline / Tidak Dapat Diputar</h3>
+          <p id="playerErrorMessage" class="text-xs text-gray-400 max-w-md">Stream saat ini sedang offline atau memerlukan proxy CORS.</p>
+          <div class="flex gap-2 mt-2">
+            <button id="retryBtn" class="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-xs font-semibold flex items-center gap-1.5 transition">
+              <i data-lucide="rotate-cw" class="w-3.5 h-3.5"></i> Coba Lagi
+            </button>
+            <button id="nextChannelBtn" class="px-4 py-2 bg-gray-800 hover:bg-gray-700 text-gray-300 rounded-lg text-xs font-semibold transition">
+              Saluran Berikutnya
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Active Channel Info Bar -->
+      <div class="glass p-4 rounded-2xl flex flex-wrap items-center justify-between gap-4 border border-gray-800">
+        <div class="flex items-center gap-3.5">
+          <div id="currentLogo" class="w-12 h-12 rounded-xl bg-gray-800/90 border border-gray-700 flex items-center justify-center p-1.5 shrink-0">
+            <i data-lucide="tv" class="w-6 h-6 text-gray-500"></i>
+          </div>
+          <div>
+            <div class="flex items-center gap-2">
+              <h2 id="currentTitle" class="font-bold text-lg text-white">Pilih Saluran TV</h2>
+              <span id="currentStatus" class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span> READY
+              </span>
+            </div>
+            <p id="currentMeta" class="text-xs text-gray-400 mt-0.5">Sumber: iptv-org • HLS Stream Ready</p>
+          </div>
+        </div>
+
+        <!-- Player Actions -->
+        <div class="flex items-center gap-2">
+          <button id="shareBtn" title="Bagikan Saluran" class="p-2.5 rounded-xl bg-gray-800/70 hover:bg-gray-700 text-gray-300 border border-gray-700 transition">
+            <i data-lucide="share-2" class="w-4 h-4"></i>
+          </button>
+          <button id="toggleProxyBtn" title="Gunakan CORS Proxy" class="px-3 py-2 rounded-xl text-xs font-semibold bg-gray-800/70 hover:bg-indigo-600/30 border border-gray-700 text-gray-300 hover:text-indigo-300 transition flex items-center gap-1.5">
+            <i data-lucide="shield-check" class="w-3.5 h-3.5"></i> <span id="proxyLabel">Proxy: OFF</span>
+          </button>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- Sidebar / Channel List Column (4 cols on desktop) -->
+    <div class="lg:col-span-4 flex flex-col gap-4 max-h-[85vh]">
+      
+      <!-- Category Tabs -->
+      <div class="glass p-2 rounded-2xl flex flex-wrap gap-1.5 border border-gray-800 text-xs font-semibold">
+        <button class="cat-btn active px-3 py-1.5 rounded-xl bg-indigo-600 text-white transition shadow-sm" data-cat="id">🇮🇩 Indonesia</button>
+        <button class="cat-btn px-3 py-1.5 rounded-xl bg-gray-800 text-gray-400 hover:text-gray-200 transition" data-cat="news">Berita</button>
+        <button class="cat-btn px-3 py-1.5 rounded-xl bg-gray-800 text-gray-400 hover:text-gray-200 transition" data-cat="sports">Olahraga</button>
+        <button class="cat-btn px-3 py-1.5 rounded-xl bg-gray-800 text-gray-400 hover:text-gray-200 transition" data-cat="movies">Film & Hiburan</button>
+        <button class="cat-btn px-3 py-1.5 rounded-xl bg-gray-800 text-gray-400 hover:text-gray-200 transition" data-cat="all">Semua</button>
+      </div>
+
+      <!-- Channel List Card -->
+      <div class="glass p-3 rounded-2xl flex-1 flex flex-col overflow-hidden border border-gray-800">
+        <div class="flex items-center justify-between px-2 py-1.5 border-b border-gray-800 text-xs font-medium text-gray-400">
+          <span>Daftar Saluran (<span id="channelCount">0</span>)</span>
+          <span class="text-[11px] text-gray-500">Auto HLS</span>
+        </div>
+
+        <div id="channelList" class="flex-1 overflow-y-auto space-y-1.5 mt-2.5 pr-1 custom-scrollbar">
+          <!-- Populated by JavaScript -->
+        </div>
+      </div>
+
+    </div>
+
+  </main>
+
+  <!-- Footer -->
+  <footer class="mt-auto border-t border-gray-800/80 py-4 px-6 text-center text-xs text-gray-500">
+    <p>Noir TV • Ditenagai oleh Cloudflare Pages & iptv-org open playlist data.</p>
+  </footer>
+
+  <script>
+    // Inisialisasi ikon
+    lucide.createIcons();
+
+    // Default Playlists
+    const PLAYLIST_SOURCES = {
+      id: "https://iptv-org.github.io/iptv/countries/id.m3u",
+      news: "https://iptv-org.github.io/iptv/categories/news.m3u",
+      sports: "https://iptv-org.github.io/iptv/categories/sports.m3u",
+      movies: "https://iptv-org.github.io/iptv/categories/movies.m3u",
+      all: "https://iptv-org.github.io/iptv/index.m3u"
+    };
+
+    let allChannels = [];
+    let activeChannel = null;
+    let hlsInstance = null;
+    let useProxy = false;
+    let currentCategory = "id";
+
+    const videoEl = document.getElementById("videoPlayer");
+    const searchInput = document.getElementById("searchInput");
+    const channelListEl = document.getElementById("channelList");
+    const channelCountEl = document.getElementById("channelCount");
+    const currentTitleEl = document.getElementById("currentTitle");
+    const currentMetaEl = document.getElementById("currentMeta");
+    const currentLogoEl = document.getElementById("currentLogo");
+    const playerLoadingEl = document.getElementById("playerLoading");
+    const playerErrorEl = document.getElementById("playerError");
+    const playerErrorMessageEl = document.getElementById("playerErrorMessage");
+    const retryBtn = document.getElementById("retryBtn");
+    const nextChannelBtn = document.getElementById("nextChannelBtn");
+    const toggleProxyBtn = document.getElementById("toggleProxyBtn");
+    const proxyLabelEl = document.getElementById("proxyLabel");
+    const shareBtn = document.getElementById("shareBtn");
+
+    // Parser M3U Playlist Sederhana & Cepat
+    function parseM3U(content) {
+      const lines = content.split(/\r?\n/);
+      const items = [];
+      let currentItem = null;
+
+      for (let i = 0; i < lines.length; i++) {
+        const line = lines[i].trim();
+        if (line.startsWith("#EXTINF:")) {
+          currentItem = {
+            id: "ch_" + Math.random().toString(36).substr(2, 9),
+            name: "Saluran Tanpa Nama",
+            logo: "",
+            group: "",
+            url: ""
+          };
+
+          // Extract attributes
+          const nameMatch = line.match(/,(.+)$/);
+          if (nameMatch) currentItem.name = nameMatch[1].trim();
+
+          const logoMatch = line.match(/tvg-logo="([^"]*)"/i);
+          if (logoMatch) currentItem.logo = logoMatch[1];
+
+          const groupMatch = line.match(/group-title="([^"]*)"/i);
+          if (groupMatch) currentItem.group = groupMatch[1];
+        } else if (line && !line.startsWith("#") && currentItem) {
+          currentItem.url = line;
+          items.push(currentItem);
+          currentItem = null;
+        }
+      }
+      return items;
+    }
+
+    // Load Playlist
+    async function loadPlaylist(cat) {
+      channelListEl.innerHTML = `<div class="p-4 text-center text-xs text-gray-400 animate-pulse">Mengambil daftar siaran...</div>`;
+      try {
+        const url = PLAYLIST_SOURCES[cat];
+        const res = await fetch(url);
+        if (!res.ok) throw new Error("Gagal mengambil data playlist");
+        const text = await res.text();
+        allChannels = parseM3U(text);
+        renderChannels(allChannels);
+
+        // Auto play first channel if none playing
+        if (!activeChannel && allChannels.length > 0) {
+          playChannel(allChannels[0]);
+        }
+      } catch (err) {
+        channelListEl.innerHTML = `<div class="p-4 text-center text-xs text-rose-400">Gagal memuat saluran: ${err.message}</div>`;
+      }
+    }
+
+    // Render Channel Cards
+    function renderChannels(channels) {
+      channelCountEl.textContent = channels.length;
+      if (channels.length === 0) {
+        channelListEl.innerHTML = `<div class="p-6 text-center text-xs text-gray-500">Tidak ada saluran ditemukan</div>`;
+        return;
+      }
+
+      channelListEl.innerHTML = channels.map((ch, idx) => {
+        const isActive = activeChannel && activeChannel.url === ch.url;
+        const logoHtml = ch.logo 
+          ? `<img src="${ch.logo}" class="w-8 h-8 rounded-lg object-contain bg-gray-900 border border-gray-700/60 p-0.5" onerror="this.src=''; this.className='hidden';" alt="" />`
+          : `<div class="w-8 h-8 rounded-lg bg-gray-800 flex items-center justify-center text-gray-400 font-bold text-xs">${ch.name.substring(0, 2).toUpperCase()}</div>`;
+
+        return `
+          <button 
+            onclick="selectChannel(${idx})"
+            class="channel-card w-full text-left p-2.5 rounded-xl transition duration-150 flex items-center justify-between border ${
+              isActive 
+                ? "bg-indigo-600/20 border-indigo-500/50 text-white shadow-sm" 
+                : "bg-gray-900/50 hover:bg-gray-800/80 border-gray-800/80 text-gray-300"
+            }"
+          >
+            <div class="flex items-center gap-3 min-w-0 pr-2">
+              ${logoHtml}
+              <div class="truncate">
+                <div class="font-semibold text-sm truncate ${isActive ? 'text-indigo-300' : 'text-gray-200'}">${ch.name}</div>
+                <div class="text-[11px] text-gray-500 truncate">${ch.group || 'Live Stream'}</div>
+              </div>
+            </div>
+            <div class="play-badge opacity-0 transition-opacity p-1.5 rounded-lg bg-indigo-600/30 text-indigo-400">
+              <i data-lucide="play" class="w-3.5 h-3.5"></i>
+            </div>
+          </button>
+        `;
+      }).join("");
+
+      lucide.createIcons();
+    }
+
+    // Play Selected Channel
+    function playChannel(ch) {
+      activeChannel = ch;
+      currentTitleEl.textContent = ch.name;
+      currentMetaEl.textContent = `${ch.group || 'Kategori Umum'} • ${ch.url.split('/')[2] || 'HLS Live'}`;
+      
+      if (ch.logo) {
+        currentLogoEl.innerHTML = `<img src="${ch.logo}" class="w-full h-full object-contain rounded-lg" onerror="this.parentElement.innerHTML='<i data-lucide=\\'tv\\' class=\\'w-6 h-6 text-gray-400\\'></i>'; lucide.createIcons();" />`;
+      } else {
+        currentLogoEl.innerHTML = `<i data-lucide="tv" class="w-6 h-6 text-gray-400"></i>`;
+        lucide.createIcons();
+      }
+
+      playerErrorEl.classList.add("hidden");
+      playerLoadingEl.classList.remove("hidden");
+
+      let streamUrl = ch.url;
+      if (useProxy) {
+        streamUrl = `/api/proxy?url=${encodeURIComponent(ch.url)}`;
+      }
+
+      if (hlsInstance) {
+        hlsInstance.destroy();
+      }
+
+      if (Hls.isSupported()) {
+        hlsInstance = new Hls({
+          enableWorker: true,
+          lowLatencyMode: true,
+          backBufferLength: 30
+        });
+
+        hlsInstance.loadSource(streamUrl);
+        hlsInstance.attachMedia(videoEl);
+
+        hlsInstance.on(Hls.Events.MANIFEST_PARSED, () => {
+          playerLoadingEl.classList.add("hidden");
+          videoEl.play().catch(e => console.log("Autoplay dicegah:", e));
+        });
+
+        hlsInstance.on(Hls.Events.ERROR, (event, data) => {
+          if (data.fatal) {
+            playerLoadingEl.classList.add("hidden");
+            playerErrorEl.classList.remove("hidden");
+            playerErrorMessageEl.textContent = `Kesalahan: ${data.details}. Coba aktifkan mode Proxy CORS.`;
+          }
+        });
+      } else if (videoEl.canPlayType("application/vnd.apple.mpegurl")) {
+        // Native Safari/iOS support
+        videoEl.src = streamUrl;
+        videoEl.addEventListener("loadedmetadata", () => {
+          playerLoadingEl.classList.add("hidden");
+          videoEl.play().catch(e => console.log("Autoplay dicegah:", e));
+        });
+        videoEl.addEventListener("error", () => {
+          playerLoadingEl.classList.add("hidden");
+          playerErrorEl.classList.remove("hidden");
+        });
+      }
+
+      renderChannels(filteredChannels());
+    }
+
+    window.selectChannel = function(idx) {
+      const list = filteredChannels();
+      if (list[idx]) {
+        playChannel(list[idx]);
+      }
+    };
+
+    function filteredChannels() {
+      const q = searchInput.value.toLowerCase().trim();
+      if (!q) return allChannels;
+      return allChannels.filter(c => 
+        c.name.toLowerCase().includes(q) || 
+        (c.group && c.group.toLowerCase().includes(q))
+      );
+    }
+
+    // Event Listeners
+    searchInput.addEventListener("input", () => {
+      renderChannels(filteredChannels());
+    });
+
+    document.querySelectorAll(".cat-btn").forEach(btn => {
+      btn.addEventListener("click", () => {
+        document.querySelectorAll(".cat-btn").forEach(b => {
+          b.classList.remove("active", "bg-indigo-600", "text-white");
+          b.classList.add("bg-gray-800", "text-gray-400");
+        });
+        btn.classList.add("active", "bg-indigo-600", "text-white");
+        btn.classList.remove("bg-gray-800", "text-gray-400");
+        
+        currentCategory = btn.getAttribute("data-cat");
+        loadPlaylist(currentCategory);
+      });
+    });
+
+    retryBtn.addEventListener("click", () => {
+      if (activeChannel) playChannel(activeChannel);
+    });
+
+    nextChannelBtn.addEventListener("click", () => {
+      const list = filteredChannels();
+      const currIdx = list.findIndex(c => c.url === (activeChannel && activeChannel.url));
+      if (currIdx !== -1 && currIdx + 1 < list.length) {
+        playChannel(list[currIdx + 1]);
+      } else if (list.length > 0) {
+        playChannel(list[0]);
+      }
+    });
+
+    toggleProxyBtn.addEventListener("click", () => {
+      useProxy = !useProxy;
+      proxyLabelEl.textContent = useProxy ? "Proxy: ON" : "Proxy: OFF";
+      toggleProxyBtn.classList.toggle("bg-indigo-600/40", useProxy);
+      toggleProxyBtn.classList.toggle("text-indigo-300", useProxy);
+      if (activeChannel) playChannel(activeChannel);
+    });
+
+    shareBtn.addEventListener("click", () => {
+      if (navigator.share && activeChannel) {
+        navigator.share({
+          title: `Tonton ${activeChannel.name} di Noir TV`,
+          url: window.location.href
+        }).catch(() => {});
+      } else {
+        navigator.clipboard.writeText(window.location.href);
+        alert("Link web berhasil disalin!");
+      }
+    });
+
+    // Start loading default Indonesia category
+    loadPlaylist("id");
+  </script>
+</body>
+</html>
