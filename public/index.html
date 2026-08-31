@@ -3,123 +3,118 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Noir TV - Premium Stream Portal</title>
+  <title>Noir TV</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <script src="https://cdn.tailwindcss.com"></script>
-  <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
-  <script src="https://unpkg.com/lucide@latest"></script>
-  <script>
-    tailwind.config = {
-      darkMode: 'class',
-      theme: {
-        extend: {
-          colors: { brand: { 50: '#eff6ff', 500: '#6366f1', 600: '#4f46e5', 700: '#4338ca' } }
-        }
-      }
-    }
-  </script>
   <style>
     body { font-family: 'Plus Jakarta Sans', sans-serif; }
     .custom-scrollbar::-webkit-scrollbar { width: 5px; }
     .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
     .custom-scrollbar::-webkit-scrollbar-thumb { background: #374151; border-radius: 9999px; }
     .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #4b5563; }
+    .channel-btn.active { background: rgba(99,102,241,0.15); border-color: rgba(99,102,241,0.5); }
+    .channel-btn.active .ch-name { color: #c7d2fe; }
+    .channel-btn:hover:not(.active) { background: rgba(55,65,81,0.5); }
   </style>
 </head>
 <body class="bg-gray-950 text-gray-100 min-h-screen flex flex-col antialiased">
 
-  <!-- Sticky Header -->
-  <header class="sticky top-0 z-30 bg-gray-950/90 border-b border-gray-800/80 backdrop-blur-md px-3 py-2.5">
+  <!-- Header -->
+  <header class="sticky top-0 z-30 bg-gray-950/90 border-b border-gray-800 backdrop-blur-sm px-3 py-2.5">
     <div class="max-w-7xl mx-auto flex items-center justify-between gap-3">
       <div class="flex items-center gap-2.5">
-        <div class="w-8 h-8 rounded-lg bg-indigo-600 flex items-center justify-center shadow-lg shadow-indigo-500/30 shrink-0">
-          <i data-lucide="tv" class="w-4 h-4 text-white"></i>
+        <div class="w-8 h-8 rounded-lg bg-indigo-600 flex items-center justify-center shadow-indigo-500/30">
+          <svg class="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/>
+          </svg>
         </div>
         <div>
-          <h1 class="font-bold text-sm tracking-tight text-white flex items-center gap-1.5">
-            Noir TV <span class="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-indigo-500/20 text-indigo-400 border border-indigo-500/30">PRO</span>
-          </h1>
+          <div class="flex items-center gap-1.5">
+            <span class="font-bold text-sm text-white">Noir TV</span>
+            <span class="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-indigo-500/20 text-indigo-400 border border-indigo-500/30">PRO</span>
+          </div>
           <p class="text-[10px] text-gray-400 -mt-0.5">Live IPTV Stream</p>
         </div>
       </div>
       <div class="relative w-full max-w-[200px]">
-        <i data-lucide="search" class="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none"></i>
+        <svg class="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
+        </svg>
         <input type="text" id="searchInput" placeholder="Cari saluran..." autocomplete="off"
-          class="w-full bg-gray-900/80 border border-gray-800/60 focus:border-indigo-500/50 rounded-lg pl-8 pr-3 py-1.5 text-xs text-gray-200 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 transition">
+          class="w-full bg-gray-900/80 border border-gray-800 rounded-lg pl-8 pr-3 py-1.5 text-xs text-gray-200 placeholder-gray-500 focus:outline-none focus:border-indigo-500/50 focus:ring-1 focus:ring-indigo-500/30 transition">
       </div>
     </div>
   </header>
 
-  <!-- Category Strip -->
-  <div class="sticky top-[50px] z-20 bg-gray-950/90 border-b border-gray-800/60 px-3 py-2">
-    <div class="max-w-7xl mx-auto">
-      <div class="flex items-center gap-1.5 overflow-x-auto custom-scrollbar pb-0.5">
-        <button class="cat-btn active min-w-[68px] px-2.5 py-1.5 rounded-md bg-indigo-600 text-white text-xs font-semibold transition" data-cat="id">🇮🇩 Indo</button>
-        <button class="cat-btn min-w-[55px] px-2.5 py-1.5 rounded-md text-gray-400 hover:text-white hover:bg-gray-800 text-xs font-semibold transition" data-cat="news">Berita</button>
-        <button class="cat-btn min-w-[60px] px-2.5 py-1.5 rounded-md text-gray-400 hover:text-white hover:bg-gray-800 text-xs font-semibold transition" data-cat="sports">Olahraga</button>
-        <button class="cat-btn min-w-[55px] px-2.5 py-1.5 rounded-md text-gray-400 hover:text-white hover:bg-gray-800 text-xs font-semibold transition" data-cat="movies">Film</button>
-        <button class="cat-btn min-w-[50px] px-2.5 py-1.5 rounded-md text-gray-400 hover:text-white hover:bg-gray-800 text-xs font-semibold transition" data-cat="all">Semua</button>
-      </div>
+  <!-- Category tabs -->
+  <div class="sticky top-[48px] z-20 bg-gray-950/90 border-b border-gray-800/60 px-3 py-2">
+    <div class="max-w-7xl mx-auto flex items-center gap-1 overflow-x-auto pb-0.5" id="catTabs">
+      <button class="cat-btn active min-w-[68px] px-2.5 py-1.5 rounded-md bg-indigo-600 text-white text-xs font-semibold transition" data-cat="id">🇮🇩 Indo</button>
+      <button class="cat-btn min-w-[55px] px-2.5 py-1.5 rounded-md text-gray-400 hover:text-white text-xs font-semibold transition" data-cat="news">Berita</button>
+      <button class="cat-btn min-w-[60px] px-2.5 py-1.5 rounded-md text-gray-400 hover:text-white text-xs font-semibold transition" data-cat="sports">Olahraga</button>
+      <button class="cat-btn min-w-[55px] px-2.5 py-1.5 rounded-md text-gray-400 hover:text-white text-xs font-semibold transition" data-cat="movies">Film</button>
+      <button class="cat-btn min-w-[50px] px-2.5 py-1.5 rounded-md text-gray-400 hover:text-white text-xs font-semibold transition" data-cat="all">Semua</button>
     </div>
   </div>
 
-  <!-- Main Layout -->
+  <!-- Main -->
   <main class="max-w-7xl mx-auto w-full p-3 lg:p-5 grid grid-cols-1 lg:grid-cols-12 gap-4 flex-1">
 
-    <!-- Player Area (8/12 cols) -->
+    <!-- Player (8 col) -->
     <div class="lg:col-span-8 flex flex-col gap-3">
       <div class="relative aspect-video bg-black rounded-2xl overflow-hidden border border-gray-800 shadow-2xl flex items-center justify-center">
 
-        <video id="videoPlayer" controls autoplay playsinline class="w-full h-full object-contain"></video>
+        <video id="videoPlayer" controls playsinline class="w-full h-full object-contain"></video>
 
-        <!-- Loading Overlay -->
-        <div id="playerLoading" class="absolute inset-0 bg-black/80 flex flex-col items-center justify-center gap-3 z-10 hidden">
+        <!-- Loading -->
+        <div id="playerLoading" class="absolute inset-0 bg-black/80 flex flex-col items-center justify-center gap-3 hidden z-10">
           <div class="w-8 h-8 border-4 border-indigo-500/20 border-t-indigo-500 rounded-full animate-spin"></div>
           <span class="text-xs text-gray-300 font-medium">Memuat siaran...</span>
         </div>
 
-        <!-- Error Overlay -->
+        <!-- Error -->
         <div id="playerError" class="absolute inset-0 bg-gray-950/95 flex flex-col items-center justify-center p-6 text-center gap-3 z-20 hidden">
           <div class="w-10 h-10 rounded-full bg-rose-500/10 text-rose-400 flex items-center justify-center">
-            <i data-lucide="alert-circle" class="w-5 h-5"></i>
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
+            </svg>
           </div>
           <div>
             <h3 class="text-sm font-semibold text-white">Siaran Tidak Tersedia</h3>
             <p id="playerErrorText" class="text-xs text-gray-400 mt-1 max-w-xs">Saluran ini offline atau stream telah berakhir.</p>
           </div>
           <div class="flex items-center gap-2">
-            <button id="retryBtn" class="px-3.5 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-xs font-semibold transition flex items-center gap-1.5">
-              <i data-lucide="rotate-cw" class="w-3.5 h-3.5"></i> Muat Ulang
-            </button>
-            <button id="nextBtn" class="px-3.5 py-1.5 bg-gray-800 hover:bg-gray-700 text-gray-300 rounded-lg text-xs font-semibold transition">
-              Saluran Lain →
-            </button>
+            <button id="retryBtn" class="px-3.5 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-xs font-semibold transition">Muat Ulang</button>
+            <button id="nextBtn" class="px-3.5 py-1.5 bg-gray-800 hover:bg-gray-700 text-gray-300 rounded-lg text-xs font-semibold transition">Saluran Lain →</button>
           </div>
         </div>
+
       </div>
 
-      <!-- Info Bar -->
+      <!-- Info bar -->
       <div class="bg-gray-900/60 border border-gray-800/80 p-3 rounded-2xl flex items-center justify-between gap-3">
         <div class="flex items-center gap-3 min-w-0">
           <div id="currentLogo" class="w-10 h-10 rounded-xl bg-gray-800 border border-gray-700/60 flex items-center justify-center p-1 shrink-0">
-            <i data-lucide="tv" class="w-5 h-5 text-gray-400"></i>
+            <svg class="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/>
+            </svg>
           </div>
           <div class="min-w-0">
-            <div class="flex items-center gap-2">
-              <h2 id="currentTitle" class="font-bold text-sm text-white truncate">Pilih Saluran</h2>
-            </div>
+            <h2 id="currentTitle" class="font-bold text-sm text-white truncate">Pilih Saluran</h2>
             <p id="currentMeta" class="text-[11px] text-gray-400 truncate mt-0.5">Daftar saluran IPTV Indonesia & Global</p>
           </div>
         </div>
         <button id="shareBtn" class="p-2 bg-gray-800 hover:bg-gray-700 text-gray-300 rounded-xl border border-gray-700/60 transition shrink-0">
-          <i data-lucide="share-2" class="w-3.5 h-3.5"></i>
+          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z"/>
+          </svg>
         </button>
       </div>
     </div>
 
-    <!-- Channel Sidebar (4/12 cols) -->
+    <!-- Channel list (4 col) -->
     <div class="lg:col-span-4 flex flex-col gap-2.5 max-h-[82vh]">
       <div class="bg-gray-900/60 border border-gray-800 rounded-2xl p-2.5 flex-1 flex flex-col overflow-hidden">
         <div class="flex items-center justify-between text-xs text-gray-400 font-medium pb-2 mb-2 border-b border-gray-800/80">
@@ -134,10 +129,13 @@
 
   </main>
 
+  <!-- hls.js loaded externally -->
+  <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
   <script>
-    lucide.createIcons();
+  (function() {
+    'use strict';
 
-    const SOURCES = {
+    var SOURCES = {
       id:     "https://iptv-org.github.io/iptv/countries/id.m3u",
       news:   "https://iptv-org.github.io/iptv/categories/news.m3u",
       sports: "https://iptv-org.github.io/iptv/categories/sports.m3u",
@@ -145,34 +143,48 @@
       all:    "https://iptv-org.github.io/iptv/index.m3u"
     };
 
-    // All state in one place
-    const state = {
-      all: [],       // full unfiltered channel list
-      filtered: [],  // current filtered view
-      activeIdx: -1, // index into filtered array
-      category: "id"
-    };
+    // State
+    var channels = [];     // full unfiltered list
+    var filtered = [];     // current filtered view
+    var activeIdx = -1;   // index into filtered
 
-    const $ = id => document.getElementById(id);
+    // DOM refs
+    var $ = function(id) { return document.getElementById(id); };
+    var videoEl       = $('videoPlayer');
+    var listEl        = $('channelList');
+    var countEl       = $('channelCount');
+    var titleEl       = $('currentTitle');
+    var metaEl        = $('currentMeta');
+    var logoEl        = $('currentLogo');
+    var loadingEl     = $('playerLoading');
+    var errorEl       = $('playerError');
+    var errorTextEl   = $('playerErrorText');
 
+    var hlsInst = null;
+
+    // ---- M3U parser: normalize \r\n and \r to \n before splitting ----
     function parseM3U(text) {
-      const lines = text.split(/\r?\n/), out = [];
-      let curr = null;
-      for (const line of lines) {
-        const t = line.trim();
-        if (t.startsWith("#EXTINF:")) {
-          curr = { name: "Tanpa Nama", logo: "", group: "", url: "", referrer: "" };
-          const m = t.match(/,(.+)$/);    if (m) curr.name = m[1].trim();
-          const l = t.match(/tvg-logo="([^"]*)"/i); if (l) curr.logo = l[1];
-          const g = t.match(/group-title="([^"]*)"/i); if (g) curr.group = g[1];
-          const r = t.match(/http-referrer="([^"]*)"/i); if (r) curr.referrer = r[1];
-        } else if (t === "#EXTVLCOPT:http-referrer=" && curr) {
-          // edge case: referrer on next line
-          curr.referrer = "";
-        } else if (t.startsWith("#EXTVLCOPT:http-referrer=") && curr) {
-          curr.referrer = t.replace("#EXTVLCOPT:http-referrer=", "").trim();
-        } else if (t && !t.startsWith("#") && curr) {
-          curr.url = t;
+      // Normalize all line endings to \n first, then split
+      var lines = text.replace(/\r\n?/g, '\n').split('\n');
+      var out = [], curr = null;
+
+      for (var i = 0; i < lines.length; i++) {
+        var line = lines[i];
+
+        if (line.startsWith('#EXTINF:')) {
+          curr = { name: 'Tanpa Nama', logo: '', group: '', url: '', referrer: '' };
+          var nameM = line.match(/,(.+)$/);
+          if (nameM) curr.name = nameM[1].trim();
+          var logoM = line.match(/tvg-logo="([^"]*)"/i);
+          if (logoM) curr.logo = logoM[1];
+          var grpM = line.match(/group-title="([^"]*)"/i);
+          if (grpM) curr.group = grpM[1];
+          var refM = line.match(/http-referrer="([^"]*)"/i);
+          if (refM) curr.referrer = refM[1];
+        } else if (line.startsWith('#EXTVLCOPT:http-referrer=') && curr) {
+          curr.referrer = line.replace('#EXTVLCOPT:http-referrer=', '').trim();
+        } else if (line && !line.startsWith('#') && curr) {
+          curr.url = line;
           out.push(curr);
           curr = null;
         }
@@ -180,172 +192,225 @@
       return out;
     }
 
+    // ---- Filter ----
     function applyFilter() {
-      const q = $("searchInput").value.toLowerCase().trim();
-      state.filtered = q ? state.all.filter(c => c.name.toLowerCase().includes(q) || c.group.toLowerCase().includes(q)) : [...state.all];
-      state.activeIdx = -1; // reset active when filter changes
+      var q = ($('searchInput').value || '').toLowerCase().trim();
+      if (!q) {
+        filtered = channels.slice();
+      } else {
+        filtered = [];
+        for (var i = 0; i < channels.length; i++) {
+          var ch = channels[i];
+          if (ch.name.toLowerCase().indexOf(q) !== -1 ||
+              ch.group.toLowerCase().indexOf(q) !== -1) {
+            filtered.push(ch);
+          }
+        }
+      }
+      activeIdx = -1;
     }
 
+    // ---- Render channel list ----
     function renderList() {
-      $("channelCount").textContent = state.filtered.length;
-      const el = $("channelList");
-
-      if (state.filtered.length === 0) {
-        el.innerHTML = `<div class="p-4 text-center text-xs text-gray-500">Tidak ada saluran ditemukan</div>`;
+      countEl.textContent = filtered.length;
+      if (filtered.length === 0) {
+        listEl.innerHTML = '<div class="p-4 text-center text-xs text-gray-500">Tidak ada saluran ditemukan</div>';
         return;
       }
 
-      el.innerHTML = state.filtered.map((ch, i) => {
-        const active = i === state.activeIdx;
-        const logo = ch.logo
-          ? `<img src="${ch.logo}" class="w-7 h-7 object-contain rounded bg-gray-950 p-0.5 shrink-0" onerror="this.style.display='none'" />`
-          : `<div class="w-7 h-7 rounded bg-gray-800 text-[10px] font-bold flex items-center justify-center text-gray-400 shrink-0">${ch.name.slice(0,2).toUpperCase()}</div>`;
-        return `<button onclick="play(${i})" class="w-full text-left p-2 rounded-xl border flex items-center justify-between gap-2 transition ${active ? 'bg-indigo-600/20 border-indigo-500/50' : 'bg-gray-900/40 border-gray-800/80 hover:bg-gray-800/80'}">
-          <div class="flex items-center gap-2.5 min-w-0">
-            ${logo}
-            <div class="truncate">
-              <div class="font-medium text-xs truncate ${active ? 'text-indigo-300' : 'text-gray-200'}">${ch.name}</div>
-              <div class="text-[10px] text-gray-500 truncate">${ch.group || 'Live'}</div>
-            </div>
-          </div>
-          <i data-lucide="${active ? 'disc' : 'circle'}" class="w-3.5 h-3.5 shrink-0 ${active ? 'text-indigo-400' : 'text-gray-600'}"></i>
-        </button>`;
-      }).join("");
-      lucide.createIcons();
+      var html = '';
+      for (var i = 0; i < filtered.length; i++) {
+        var ch = filtered[i];
+        var isActive = (i === activeIdx);
+        var cls = isActive ? 'channel-btn active' : 'channel-btn';
+        var nameCls = isActive ? 'ch-name font-medium text-xs text-indigo-300 truncate' : 'ch-name font-medium text-xs text-gray-200 truncate';
+        var dotColor = isActive ? 'text-indigo-400' : 'text-gray-600';
+
+        var logoHtml;
+        if (ch.logo) {
+          logoHtml = '<img src="' + ch.logo + '" class="w-7 h-7 object-contain rounded bg-gray-950 p-0.5 shrink-0" alt="" onerror="this.style.display=\'none\'">';
+        } else {
+          var initials = ch.name.substring(0, 2).toUpperCase();
+          logoHtml = '<div class="w-7 h-7 rounded bg-gray-800 text-[10px] font-bold flex items-center justify-center text-gray-400 shrink-0">' + initials + '</div>';
+        }
+
+        html += '<button class="' + cls + ' w-full text-left p-2 rounded-xl border border-gray-800/80 flex items-center justify-between gap-2 transition" data-idx="' + i + '">' +
+          '<div class="flex items-center gap-2.5 min-w-0">' +
+            logoHtml +
+            '<div class="truncate">' +
+              '<div class="' + nameCls + '">' + escHtml(ch.name) + '</div>' +
+              '<div class="text-[10px] text-gray-500 truncate">' + escHtml(ch.group || 'Live') + '</div>' +
+            '</div>' +
+          '</div>' +
+          '<svg class="w-3.5 h-3.5 ' + dotColor + ' shrink-0" fill="currentColor" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/></svg>' +
+        '</button>';
+      }
+      listEl.innerHTML = html;
     }
 
-    function loadPlaylist(cat) {
-      state.category = cat;
-      state.activeIdx = -1;
-      $("channelList").innerHTML = `<div class="p-4 text-center text-xs text-gray-400 animate-pulse">Memuat playlist...</div>`;
-      $("currentTitle").textContent = "Pilih Saluran";
-      $("currentMeta").textContent = "Daftar saluran IPTV Indonesia & Global";
-      $("currentLogo").innerHTML = `<i data-lucide="tv" class="w-5 h-5 text-gray-400"></i>`;
-      lucide.createIcons();
-      if (Hls.isSupported()) hls.destroy();
-      video.src = "";
-
-      fetch(SOURCES[cat])
-        .then(r => { if (!r.ok) throw new Error("HTTP " + r.status); return r.text(); })
-        .then(text => {
-          state.all = parseM3U(text);
-          applyFilter();
-          renderList();
-          if (state.filtered.length > 0) play(0);
-        })
-        .catch(e => { $("channelList").innerHTML = `<div class="p-4 text-center text-xs text-rose-400">Gagal memuat: ${e.message}</div>`; });
+    function escHtml(str) {
+      return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
     }
 
-    function play(idx) {
-      if (idx < 0 || idx >= state.filtered.length) return;
-      const ch = state.filtered[idx];
-      state.activeIdx = idx;
+    // ---- Play channel at filtered index ----
+    function playChannel(idx) {
+      if (idx < 0 || idx >= filtered.length) return;
+      var ch = filtered[idx];
+      activeIdx = idx;
 
-      $("currentTitle").textContent = ch.name;
-      $("currentMeta").textContent = `${ch.group || 'Umum'} • ${new URL(ch.url).hostname}`;
-      $("currentLogo").innerHTML = ch.logo
-        ? `<img src="${ch.logo}" class="w-full h-full object-contain rounded-lg" onerror="this.parentElement.innerHTML='<i data-lucide=\\'tv\\' class=\\'w-5 h-5 text-gray-400\\'></i>'; lucide.createIcons();" />`
-        : `<i data-lucide="tv" class="w-5 h-5 text-gray-400"></i>`;
-      lucide.createIcons();
+      titleEl.textContent = ch.name;
+      try {
+        metaEl.textContent = (ch.group || 'Umum') + ' \u2022 ' + new URL(ch.url).hostname;
+      } catch(e) {
+        metaEl.textContent = ch.group || 'Umum';
+      }
 
-      $("playerError").classList.add("hidden");
-      $("playerLoading").classList.remove("hidden");
+      if (ch.logo) {
+        logoEl.innerHTML = '<img src="' + ch.logo + '" class="w-full h-full object-contain rounded-lg" alt="" onerror="this.parentElement.innerHTML=\'<svg class=&#34;w-5 h-5 text-gray-400&#34; fill=&#34;none&#34; stroke=&#34;currentColor&#34; viewBox=&#34;0 0 24 24&#34;><path stroke-linecap=&#34;round&#34; stroke-linejoin=&#34;round&#34; stroke-width=&#34;2&#34; d=&#34;M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z&#34;/></svg>\'">';
+      } else {
+        logoEl.innerHTML = '<svg class="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>';
+      }
 
-      // All streams route through /api/proxy so chunk/ts sub-URLs are CORS-safe
-      const targetUrl = `/api/proxy?url=${encodeURIComponent(ch.url)}`;
+      errorEl.classList.add('hidden');
+      loadingEl.classList.remove('hidden');
 
-      if (hls) hls.destroy();
+      // Always use proxy so all sub-URLs (chunklist/ts) are CORS-safe
+      var targetUrl = '/api/proxy?url=' + encodeURIComponent(ch.url);
 
-      if (Hls.isSupported()) {
-        hls = new Hls({ enableWorker: true, lowLatencyMode: false });
-        hls.loadSource(targetUrl);
-        hls.attachMedia(video);
+      if (hlsInst) {
+        hlsInst.destroy();
+        hlsInst = null;
+      }
 
-        hls.on(Hls.Events.MANIFEST_PARSED, () => {
-          $("playerLoading").classList.add("hidden");
-          video.play().catch(() => {});
+      if (window.Hls && window.Hls.isSupported()) {
+        hlsInst = new window.Hls({ enableWorker: true, lowLatencyMode: false });
+        hlsInst.loadSource(targetUrl);
+        hlsInst.attachMedia(videoEl);
+
+        hlsInst.on(window.Hls.Events.MANIFEST_PARSED, function() {
+          loadingEl.classList.add('hidden');
+          videoEl.play().catch(function() {});
         });
 
-        hls.on(Hls.Events.ERROR, (e, data) => {
+        hlsInst.on(window.Hls.Events.ERROR, function(e, data) {
           if (data.fatal) {
-            $("playerLoading").classList.add("hidden");
-            $("playerError").classList.remove("hidden");
-            $("playerErrorText").textContent = `Stream gagal dimuat. Coba saluran lain.`;
+            loadingEl.classList.add('hidden');
+            errorEl.classList.remove('hidden');
+            errorTextEl.textContent = 'Stream gagal dimuat. Coba saluran lain.';
           }
         });
-      } else if (video.canPlayType("application/vnd.apple.mpegurl")) {
-        // Safari / iOS native HLS
-        video.src = targetUrl;
-        video.addEventListener("loadedmetadata", () => {
-          $("playerLoading").classList.add("hidden");
-          video.play().catch(() => {});
-        });
-        video.addEventListener("error", () => {
-          $("playerLoading").classList.add("hidden");
-          $("playerError").classList.remove("hidden");
-          $("playerErrorText").textContent = `Browser tidak mendukung format ini.`;
-        });
+      } else if (videoEl.canPlayType('application/vnd.apple.mpegurl')) {
+        // Safari/iOS native HLS
+        videoEl.src = targetUrl;
+        videoEl.addEventListener('loadedmetadata', function() {
+          loadingEl.classList.add('hidden');
+          videoEl.play().catch(function() {});
+        }, { once: true });
+        videoEl.addEventListener('error', function() {
+          loadingEl.classList.add('hidden');
+          errorEl.classList.remove('hidden');
+          errorTextEl.textContent = 'Browser tidak mendukung format ini.';
+        }, { once: true });
+      } else {
+        loadingEl.classList.add('hidden');
+        errorEl.classList.remove('hidden');
+        errorTextEl.textContent = 'Browser tidak mendukung HLS.';
       }
 
       renderList();
     }
 
-    // Expose globally
-    window.play = play;
+    // ---- Load playlist by category ----
+    function loadCategory(cat) {
+      listEl.innerHTML = '<div class="p-4 text-center text-xs text-gray-400 animate-pulse">Memuat playlist...</div>';
+      titleEl.textContent = 'Pilih Saluran';
+      metaEl.textContent = 'Daftar saluran IPTV Indonesia & Global';
+      logoEl.innerHTML = '<svg class="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>';
+      if (hlsInst) { hlsInst.destroy(); hlsInst = null; }
+      videoEl.src = '';
 
-    // HLS instance ref
-    let hls = null;
-    const video = $("videoPlayer");
+      var src = SOURCES[cat];
+      if (!src) return;
 
-    // Category tabs
-    document.querySelectorAll(".cat-btn").forEach(btn => {
-      btn.addEventListener("click", () => {
-        document.querySelectorAll(".cat-btn").forEach(b => {
-          b.classList.remove("active", "bg-indigo-600", "text-white");
-          b.classList.add("text-gray-400");
-        });
-        btn.classList.add("active", "bg-indigo-600", "text-white");
-        btn.classList.remove("text-gray-400");
-        loadPlaylist(btn.dataset.cat);
-      });
+      var req = new XMLHttpRequest();
+      req.open('GET', src, true);
+      req.onload = function() {
+        if (req.status === 200) {
+          channels = parseM3U(req.responseText);
+          applyFilter();
+          renderList();
+          if (filtered.length > 0) playChannel(0);
+        } else {
+          listEl.innerHTML = '<div class="p-4 text-center text-xs text-rose-400">Gagal memuat playlist (HTTP ' + req.status + ')</div>';
+        }
+      };
+      req.onerror = function() {
+        listEl.innerHTML = '<div class="p-4 text-center text-xs text-rose-400">Gagal memuat playlist. Cek koneksi internet.</div>';
+      };
+      req.send();
+    }
+
+    // ---- Event delegation on channel list ----
+    listEl.addEventListener('click', function(e) {
+      var btn = e.target.closest('.channel-btn');
+      if (!btn) return;
+      var idx = parseInt(btn.getAttribute('data-idx'), 10);
+      if (!isNaN(idx)) playChannel(idx);
     });
 
-    // Search
-    $("searchInput").addEventListener("input", () => {
+    // ---- Category tabs ----
+    $('catTabs').addEventListener('click', function(e) {
+      var btn = e.target.closest('.cat-btn');
+      if (!btn) return;
+      var els = document.querySelectorAll('.cat-btn');
+      for (var i = 0; i < els.length; i++) {
+        els[i].classList.remove('active', 'bg-indigo-600', 'text-white');
+        els[i].classList.add('text-gray-400');
+      }
+      btn.classList.add('active', 'bg-indigo-600', 'text-white');
+      btn.classList.remove('text-gray-400');
+      loadCategory(btn.getAttribute('data-cat'));
+    });
+
+    // ---- Search ----
+    $('searchInput').addEventListener('input', function() {
       applyFilter();
-      state.activeIdx = -1;
       renderList();
     });
 
-    // Retry
-    $("retryBtn").addEventListener("click", () => {
-      if (state.activeIdx >= 0) play(state.activeIdx);
+    // ---- Retry ----
+    $('retryBtn').addEventListener('click', function() {
+      if (activeIdx >= 0) playChannel(activeIdx);
     });
 
-    // Next channel
-    $("nextBtn").addEventListener("click", () => {
-      const next = state.activeIdx + 1;
-      play(next < state.filtered.length ? next : 0);
+    // ---- Next ----
+    $('nextBtn').addEventListener('click', function() {
+      var next = activeIdx + 1;
+      playChannel(next < filtered.length ? next : 0);
     });
 
-    // Share
-    $("shareBtn").addEventListener("click", () => {
+    // ---- Share ----
+    $('shareBtn').addEventListener('click', function() {
       if (navigator.share) {
-        navigator.share({ title: "Noir TV", url: location.href }).catch(() => {});
+        navigator.share({ title: 'Noir TV', url: location.href }).catch(function() {});
       } else {
         navigator.clipboard.writeText(location.href);
-        const el = $("shareBtn");
-        el.innerHTML = `<i data-lucide="check" class="w-3.5 h-3.5 text-emerald-400"></i>`;
-        lucide.createIcons();
-        setTimeout(() => {
-          el.innerHTML = `<i data-lucide="share-2" class="w-3.5 h-3.5"></i>`;
-          lucide.createIcons();
+        var el = $('shareBtn');
+        el.innerHTML = '<svg class="w-3.5 h-3.5 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>';
+        setTimeout(function() {
+          el.innerHTML = '<svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z"/></svg>';
         }, 1500);
       }
     });
 
-    // Init
-    loadPlaylist("id");
+    // ---- Init ----
+    loadCategory('id');
+
+  })();
   </script>
 </body>
 </html>
