@@ -7,6 +7,7 @@ export async function onRequest(context) {
   // CORS preflight
   if (request.method === "OPTIONS") {
     return new Response(null, {
+      status: 204,
       headers: {
         "Access-Control-Allow-Origin": "*",
         "Access-Control-Allow-Methods": "GET, HEAD, OPTIONS",
@@ -28,6 +29,13 @@ export async function onRequest(context) {
     try { normalizedTarget = new URL(targetUrl); }
     catch {
       return new Response(JSON.stringify({ error: "Invalid target URL" }), {
+        status: 400,
+        headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" }
+      });
+    }
+    // only http(s) — reject ftp:, data:, dll.
+    if (normalizedTarget.protocol !== "http:" && normalizedTarget.protocol !== "https:") {
+      return new Response(JSON.stringify({ error: "Unsupported URL scheme" }), {
         status: 400,
         headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" }
       });
@@ -61,7 +69,9 @@ export async function onRequest(context) {
 
     // REWRITE: for M3U/M3U8 playlists, rewrite any relative paths (chunklist, segments) through proxy
     // This prevents CORS errors when browser tries to load HLS segments
-    if (contentType.includes("mpegurl") || contentType.includes("m3u") || normalizedTarget.href.endsWith(".m3u")) {
+    // ponytail: deteksi via tag #EXTM3U/#EXT-X bukan content-type/ekstensi — upstream sering
+    // salah kasih text/html untuk chunklist .m3u8. Naikkan ke parser bila ada format non-HLS.
+    if (contentType.includes("mpegurl") || /\.m3u8?($|[?#])/i.test(normalizedTarget.pathname) || /^\s*#EXTM3U|#EXT-X-|#EXTINF/.test(await upstream.clone().text())) {
       const text = await upstream.text();
       const base = new URL(normalizedTarget.href);
 
