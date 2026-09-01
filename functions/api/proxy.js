@@ -41,6 +41,32 @@ export async function onRequest(context) {
       });
     }
 
+    // ---- SSRF DEFENSE: allowlist + private range block ----
+    const allowHosts = [
+      'iptv-org.github.io',
+      'raw.githubusercontent.com',
+      'github.com',
+    ];
+    const hostname = normalizedTarget.hostname.toLowerCase();
+    const allowed = allowHosts.some(h =>
+      hostname === h || hostname.endsWith('.' + h)
+    );
+    if (!allowed) {
+      return new Response(JSON.stringify({ error: "Upstream host not allowed" }), {
+        status: 403,
+        headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" }
+      });
+    }
+    // Block private / link-local / loopback / metadata IPs
+    const ip = hostname.replace(/:\d+$/, '');
+    const privateIPPattern = /^(127\.|10\.|192\.168\.|172\.(1[6-9]|2[0-9]|3[01])\.|169\.254\.|^0\.|::1$|^(fc|fe|ff|:1$))/i;
+    if (privateIPPattern.test(ip)) {
+      return new Response(JSON.stringify({ error: "Private / internal IP blocked" }), {
+        status: 403,
+        headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" }
+      });
+    }
+
     // optional referrer passed from frontend (not currently used but preserved for extensibility)
     const customReferrer = url.searchParams.get("referrer");
 
@@ -49,15 +75,24 @@ export async function onRequest(context) {
     });
     if (customReferrer) reqHeaders.set("Referer", customReferrer);
 
-    // simple retry for transient network issues (max 2 attempts)
+    // simple retry for transient network issues (max 2 attempts) with timeout
     let upstream;
+    const ctrl = new AbortController();
+    const to = setTimeout(() => ctrl.abort(), 7000);
     for (let attempt = 0; attempt < 2; attempt++) {
       try {
-        upstream = await fetch(normalizedTarget.href, { headers: reqHeaders });
+        upstream = await fetch(normalizedTarget.href, {
+          headers: reqHeaders,
+          signal: ctrl.signal,
+        });
         if (upstream.ok) break;
         upstream = null;
-      } catch (e) { upstream = null; }
+      } catch (e) {
+        upstream = null;
+        if (e.name === 'AbortError') break;
+      }
     }
+    clearTimeout(to);
     if (!upstream) {
       return new Response(JSON.stringify({ error: "Upstream fetch failed after retries" }), {
         status: 502,
@@ -95,7 +130,7 @@ export async function onRequest(context) {
           "Content-Type": contentType || "application/x-mpegurl",
           "Access-Control-Allow-Origin": "*",
           "Access-Control-Allow-Methods": "GET, HEAD, OPTIONS",
-          "Cache-Control": "no-cache"
+          "Cache-Control": "no-cache" // live playlist — never stale
         }
       });
     }
