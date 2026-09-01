@@ -301,6 +301,11 @@
             loadingEl.classList.add('hidden');
             errorEl.classList.remove('hidden');
             errorTextEl.textContent = 'Stream gagal dimuat. Coba saluran lain.';
+            // AUTO-NEXT: skip ke saluran berikut setelah 1.5s agar UX lebih baik
+            setTimeout(function() {
+              var next = activeIdx + 1;
+              if (next < filtered.length) playChannel(next);
+            }, 1500);
           }
         });
       } else if (videoEl.canPlayType('application/vnd.apple.mpegurl')) {
