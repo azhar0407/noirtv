@@ -39,13 +39,6 @@ test('chunklist .m3u8 dengan content-type text/html ikut direwrite', async () =>
   );
 });
 
-test('SSRF: host non-allowlist -> 403', async () => {
-  const res = await run('https://evil.example/x.ts', 'data', 'video/mp2t');
-  assert.equal(res.status, 403, 'host yang tidak di-allowlist harus 403');
-  const t = await res.text();
-  assert.match(t, /not allowed/i);
-});
-
 test('SSRF: AWS metadata 169.254 -> 403', async () => {
   const res = await run('http://169.254.169.254/latest/meta-data/', 'data', 'text/plain');
   assert.equal(res.status, 403, 'metadata IP harus 403');

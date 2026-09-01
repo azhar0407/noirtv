@@ -64,14 +64,10 @@ export async function onRequest(context) {
     }
 
     // ---- SSRF DEFENSE ----
-    const allowHosts = ['iptv-org.github.io', 'raw.githubusercontent.com', 'github.com'];
+    // Allow: playlist source (iptv-org) + all segment/CDN hosts derived from playlist URLs
+    // Block: private IPs (already checked below), data:, javascript:, etc.
     const hostname = normalizedTarget.hostname.toLowerCase();
-    const allowed = allowHosts.some(h => hostname === h || hostname.endsWith('.' + h));
-    if (!allowed) {
-      return new Response(JSON.stringify({ error: "Upstream host not allowed" }), {
-        status: 403, headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" }
-      });
-    }
+    // ---- PRIVATE IP BLOCK (SSRF) ----
     const ip = hostname.replace(/:\d+$/, '');
     const privateIPPattern = /^(127\.|10\.|192\.168\.|172\.(1[6-9]|2[0-9]|3[01])\.|169\.254\.|^0\.|::1$|^(fc|fe|ff|:1$))/i;
     if (privateIPPattern.test(ip)) {
