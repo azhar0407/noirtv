@@ -119,3 +119,58 @@ test('cache-control no-cache untuk playlist live', async () => {
   const res = await run(`${UP}/live.m3u8`, `#EXTM3U\n${UP}/seg.ts\n`, 'application/vnd.apple.mpegurl');
   assert.equal(res.headers.get('cache-control'), 'no-cache');
 });
+
+test('ADULT FILTER: channel dengan "XXX" di nama di-drop', async () => {
+  const body = `#EXTM3U
+#EXTINF:-1 tvg-logo="" group-title="Adult",XXX Channel 24
+${UP}/adult.ts
+#EXTINF:-1 tvg-logo="" group-title="News",CNN Indonesia
+${UP}/cnn.ts
+`;
+  const res = await run(`${UP}/list.m3u`, body, 'application/x-mpegurl');
+  const t = await res.text();
+  assert.ok(!t.includes('XXX Channel 24'), 'channel adult harus di-drop');
+  assert.ok(!t.includes(encodeURIComponent(`${UP}/adult.ts`)), 'segment adult harus hilang');
+  assert.ok(t.includes('CNN Indonesia'), 'channel biasa harus tetap ada');
+});
+
+test('ADULT FILTER: keyword porn/18+ di group-title juga di-drop', async () => {
+  const body = `#EXTM3U
+#EXTINF:-1 group-title="18+",Hot Movies
+${UP}/x.ts
+#EXTINF:-1 group-title="Sports",ESPN
+${UP}/espn.ts
+`;
+  const res = await run(`${UP}/list.m3u`, body, 'application/x-mpegurl');
+  const t = await res.text();
+  assert.ok(!t.includes('Hot Movies'), '18+ / Hot harus di-drop');
+  assert.ok(t.includes('ESPN'), 'sports channel tetap ada');
+});
+
+test('RATE LIMIT: 61 request dari IP sama di window 60s -> 429', async () => {
+  // Reset rateMap
+  // (we use require-like import fresh)
+  const mod = await import(`../functions/api/proxy.js?bust_rl=${Math.random()}`);
+  // Hit 60 times - semua harus berhasil (200 atau 502 mock)
+  for (let i = 0; i < 60; i++) {
+    const res = await mod.onRequest({
+      request: new Request('https://noir-tv.pages.dev/api/proxy?url=https://evil.example/x', {
+        headers: { 'cf-connecting-ip': '1.2.3.4' },
+      }),
+      env: {},
+    });
+    // First 60 bukan 429
+    if (res.status === 429) {
+      assert.fail(`Hit ${i+1} harus belum 429`);
+    }
+  }
+  // 61st: harus 429
+  const res61 = await mod.onRequest({
+    request: new Request('https://noir-tv.pages.dev/api/proxy?url=https://evil.example/x', {
+      headers: { 'cf-connecting-ip': '1.2.3.4' },
+    }),
+    env: {},
+  });
+  assert.equal(res61.status, 429, 'request ke-61 harus 429');
+  assert.equal(res61.headers.get('retry-after'), '60');
+});
