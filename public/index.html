@@ -13,39 +13,103 @@
       color: #e5e5e5;
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
       min-height: 100dvh;
-      overflow-x: hidden;
+      overflow: hidden;
     }
 
-    /* Scrollbar */
+    /* ── Layout breakpoints ──
+       Mobile (< 1024px): stacked — player 16:9 top, list fills rest
+       Desktop (≥1024px): side-by-side — player fills left, list fixed 300px right
+    */
+    .noir-layout {
+      display: grid;
+      grid-template-columns: 1fr;
+      grid-template-rows: auto 1fr;
+      height: calc(100dvh - 56px); /* header only */
+    }
+    @media (min-width: 1024px) {
+      .noir-layout {
+        grid-template-columns: 1fr 300px;
+        grid-template-rows: 1fr;
+        height: calc(100dvh - 53px); /* header + cat tabs */
+      }
+    }
+
+    /* ── Player cell ── */
+    .player-cell {
+      background: #000;
+      position: relative;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+    }
+    /* Mobile: fixed 16:9 aspect ratio, constrained width */
+    @media (max-width: 1023px) {
+      .player-cell {
+        width: 100%;
+        aspect-ratio: 16 / 9;
+        flex-shrink: 0;
+      }
+    }
+    /* Desktop: fills all available space */
+    @media (min-width: 1024px) {
+      .player-cell {
+        height: 100%;
+      }
+    }
+
+    #videoPlayer {
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+      background: #000;
+    }
+
+    /* ── Channel list cell ── */
+    .list-cell {
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      background: #0a0a0f;
+      border-top: 1px solid #14141e;
+    }
+    @media (min-width: 1024px) {
+      .list-cell {
+        border-top: none;
+        border-left: 1px solid #14141e;
+        height: 100%;
+      }
+    }
+
+    /* ── Scrollbar ── */
     ::-webkit-scrollbar { width: 4px; }
     ::-webkit-scrollbar-track { background: transparent; }
     ::-webkit-scrollbar-thumb { background: #2a2a35; border-radius: 99px; }
     ::-webkit-scrollbar-thumb:hover { background: #3a3a48; }
+    [data-scroller] { scrollbar-width: thin; }
 
-    /* Smooth transitions */
-    .ch-btn { transition: background 0.15s; }
-
-    /* Category pills — clean, no emoji */
+    /* ── Category pills ── */
     .cat-pill {
-      padding: 5px 14px;
+      padding: 4px 12px;
       border-radius: 99px;
       font-size: 12px;
       font-weight: 500;
       cursor: pointer;
       background: transparent;
-      color: #666;
+      color: #555;
       border: 1px solid transparent;
       white-space: nowrap;
       user-select: none;
+      transition: color 0.15s, background 0.15s, border-color 0.15s;
     }
-    .cat-pill:hover { color: #ccc; }
+    .cat-pill:hover { color: #aaa; }
     .cat-pill.active {
-      background: #1a1a24;
-      color: #fff;
-      border-color: #2a2a35;
+      background: #14141e;
+      color: #e0e0e0;
+      border-color: #22222e;
     }
 
-    /* Channel card */
+    /* ── Channel card ── */
     .ch-btn {
       display: flex;
       align-items: center;
@@ -57,49 +121,42 @@
       border: none;
       cursor: pointer;
       text-align: left;
-      color: #888;
+      color: #777;
+      transition: background 0.12s, color 0.12s;
     }
-    .ch-btn:hover { background: #12121a; color: #ccc; }
-    .ch-btn.active { background: #13131e; color: #fff; }
+    .ch-btn:hover { background: #0f0f18; color: #bbb; }
+    .ch-btn.active { background: #111120; color: #fff; }
     .ch-btn.active .ch-dot { background: #fff; }
 
     .ch-dot {
       width: 5px; height: 5px;
       border-radius: 50%;
-      background: #333;
+      background: #2a2a35;
       flex-shrink: 0;
     }
     .ch-logo {
-      width: 28px; height: 28px;
-      border-radius: 7px;
+      width: 30px; height: 30px;
+      border-radius: 8px;
       object-fit: contain;
-      background: #111;
+      background: #0f0f18;
       flex-shrink: 0;
     }
     .ch-logo-fallback {
-      width: 28px; height: 28px;
-      border-radius: 7px;
-      background: #18181f;
+      width: 30px; height: 30px;
+      border-radius: 8px;
+      background: #14141f;
       display: flex;
       align-items: center;
       justify-content: center;
       font-size: 10px;
       font-weight: 700;
-      color: #444;
+      color: #3a3a4a;
       flex-shrink: 0;
     }
     .ch-name { font-size: 13px; font-weight: 500; }
-    .ch-group { font-size: 11px; color: #444; margin-top: 1px; }
+    .ch-group { font-size: 11px; color: #3a3a4a; margin-top: 1px; }
 
-    /* Player */
-    #videoPlayer {
-      width: 100%;
-      height: 100%;
-      object-fit: contain;
-      background: #000;
-    }
-
-    /* Loading spinner */
+    /* ── Loading spinner ── */
     .spin {
       width: 28px; height: 28px;
       border: 2px solid rgba(255,255,255,0.1);
@@ -109,62 +166,93 @@
     }
     @keyframes spin { to { transform: rotate(360deg); } }
 
-    /* Overlay states */
+    /* ── Overlay states ── */
     .overlay {
       position: absolute; inset: 0;
       display: flex; flex-direction: column;
       align-items: center; justify-content: center;
       gap: 12px;
       z-index: 10;
+      pointer-events: none;
     }
     .overlay.hidden { display: none; }
-    .overlay-text { font-size: 13px; color: #888; }
+    .overlay.has-btns { pointer-events: all; }
+    .overlay-text { font-size: 13px; color: #666; }
     .overlay-btn {
-      padding: 7px 18px;
+      padding: 8px 20px;
       border-radius: 8px;
       font-size: 12px;
       font-weight: 500;
       cursor: pointer;
       border: none;
-      background: #1f1f2a;
-      color: #ccc;
-      transition: background 0.15s;
+      background: #16161f;
+      color: #aaa;
+      transition: background 0.15s, color 0.15s;
     }
-    .overlay-btn:hover { background: #2a2a38; color: #fff; }
+    .overlay-btn:hover { background: #1e1e2a; color: #fff; }
 
-    /* Focus */
-    :focus-visible { outline: 2px solid #444; outline-offset: 2px; }
+    /* ── Now-playing badge ── */
+    #nowPlaying {
+      position: absolute;
+      bottom: 10px; left: 10px;
+      display: flex; align-items: center; gap: 8px;
+      opacity: 0;
+      transition: opacity 0.3s;
+      pointer-events: none;
+      z-index: 5;
+    }
+    #nowLogo {
+      width: 20px; height: 20px;
+      border-radius: 5px;
+      object-fit: contain;
+      background: #111;
+      display: none;
+    }
+    #nowTitle {
+      font-size: 11px; font-weight: 500;
+      color: rgba(255,255,255,0.75);
+      background: rgba(0,0,0,0.55);
+      padding: 3px 8px;
+      border-radius: 6px;
+      backdrop-filter: blur(4px);
+    }
+
+    /* ── Mobile: compact header ── */
+    .hdr-search { max-width: 160px; }
+    @media (min-width: 480px) { .hdr-search { max-width: 200px; } }
+
+    /* ── Focus ── */
+    :focus-visible { outline: 2px solid #3a3a4a; outline-offset: 2px; }
   </style>
 </head>
 <body>
 
   <!-- ── Header ── -->
-  <header class="sticky top-0 z-50 px-4 py-3 flex items-center gap-3"
-          style="background:rgba(10,10,15,0.92);backdrop-filter:blur(12px);border-bottom:1px solid #14141e">
-    <!-- Logo -->
-    <div style="display:flex;align-items:center;gap:8px">
-      <div style="width:26px;height:26px;border-radius:8px;background:#13131e;border:1px solid #1f1f2a;display:flex;align-items:center;justify-content:center">
-        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#666" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+  <header style="height:56px;display:flex;align-items:center;gap:10px;padding:0 14px;
+                 background:rgba(10,10,15,0.96);backdrop-filter:blur(12px);
+                 border-bottom:1px solid #14141e;position:relative;z-index:50">
+    <div style="display:flex;align-items:center;gap:8px;flex-shrink:0">
+      <div style="width:26px;height:26px;border-radius:8px;background:#0f0f18;border:1px solid #1a1a28;display:flex;align-items:center;justify-content:center">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#555" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
           <rect x="2" y="7" width="20" height="15" rx="2"/><polyline points="17 2 12 7 7 2"/>
         </svg>
       </div>
-      <span style="font-size:15px;font-weight:600;letter-spacing:-0.3px">Noir TV</span>
+      <span style="font-size:15px;font-weight:600;letter-spacing:-0.3px;color:#d0d0d0">Noir TV</span>
     </div>
-
-    <!-- Search -->
-    <div style="position:relative;flex:1;max-width:220px">
-      <svg style="position:absolute;left:9px;top:50%;transform:translateY(-50%);width:13px;height:13px;color:#555;pointer-events:none" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+    <div class="hdr-search" style="position:relative;flex:1">
+      <svg style="position:absolute;left:9px;top:50%;transform:translateY(-50%);width:12px;height:12px;color:#444;pointer-events:none" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
         <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
       </svg>
-      <input id="searchInput" type="text" placeholder="Cari..." autocomplete="off"
-             style="width:100%;background:#111;border:1px solid #1a1a24;border-radius:8px;padding:6px 8px 6px 30px;font-size:12px;color:#ccc;outline:none;transition:border-color 0.15s"
-             onfocus="this.style.borderColor='#2a2a38'"
-             onblur="this.style.borderColor='#1a1a24'">
+      <input id="searchInput" type="text" placeholder="Cari channel..." autocomplete="off" spellcheck="false"
+             style="width:100%;background:#0e0e18;border:1px solid #18182a;border-radius:8px;padding:6px 8px 6px 30px;font-size:12px;color:#aaa;outline:none;transition:border-color 0.15s"
+             onfocus="this.style.borderColor='#2a2a3a'"
+             onblur="this.style.borderColor='#18182a'">
     </div>
   </header>
 
-  <!-- ── Categories ── -->
-  <div id="catTabs" style="display:flex;gap:6px;padding:10px 16px;overflow-x:auto;border-bottom:1px solid #14141e;scrollbar-width:none">
+  <!-- ── Categories (desktop only — hidden on mobile, inline on mobile list header) ── -->
+  <div id="catTabs" style="display:none;gap:5px;padding:8px 14px;overflow-x:auto;background:#0a0a0f;border-bottom:1px solid #111;scrollbar-width:none"
+       class="lg:!flex">
     <button class="cat-pill active" data-cat="id">Indonesia</button>
     <button class="cat-pill" data-cat="news">Berita</button>
     <button class="cat-pill" data-cat="sports">Olahraga</button>
@@ -172,47 +260,55 @@
     <button class="cat-pill" data-cat="all">Semua</button>
   </div>
 
-  <!-- ── Layout ── -->
-  <div style="display:grid;grid-template-columns:1fr;height:calc(100dvh - 97px)"
-       class="lg:grid-cols-[1fr_320px] lg:grid-rows-[1fr_auto]">
+  <!-- ── Main Layout ── -->
+  <div class="noir-layout">
 
     <!-- ── Player ── -->
-    <div style="position:relative;background:#000;display:flex;align-items:center;justify-content:center">
+    <div class="player-cell">
       <video id="videoPlayer" controls playsinline style="width:100%;height:100%;object-fit:contain"></video>
 
       <!-- Loading -->
       <div id="playerLoading" class="overlay hidden">
         <div class="spin"></div>
-        <span class="overlay-text">Memuat...</span>
+        <span class="overlay-text">Memuat…</span>
       </div>
 
       <!-- Error -->
-      <div id="playerError" class="overlay hidden" style="background:rgba(0,0,0,0.88)">
-        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#555" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+      <div id="playerError" class="overlay hidden has-btns" style="background:rgba(0,0,0,0.85)">
+        <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#444" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
           <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
         </svg>
         <span id="playerErrorText" class="overlay-text">Stream tidak tersedia</span>
-        <button id="nextBtn" class="overlay-btn">Saluran Lain</button>
+        <button id="nextBtn" class="overlay-btn">Saluran Lain ▶</button>
       </div>
 
-      <!-- Channel name overlay (subtle, bottom-left) -->
-      <div id="nowPlaying" style="position:absolute;bottom:12px;left:12px;display:flex;align-items:center;gap:8px;opacity:0;transition:opacity 0.3s;pointer-events:none">
-        <img id="nowLogo" src="" alt="" style="width:22px;height:22px;border-radius:5px;object-fit:contain;background:#111;display:none">
-        <span id="nowTitle" style="font-size:12px;font-weight:500;color:rgba(255,255,255,0.7);background:rgba(0,0,0,0.5);padding:3px 8px;border-radius:6px;backdrop-filter:blur(4px)"></span>
+      <!-- Now-playing badge -->
+      <div id="nowPlaying">
+        <img id="nowLogo" src="" alt="">
+        <span id="nowTitle"></span>
       </div>
     </div>
 
     <!-- ── Channel List ── -->
-    <div style="border-top:1px solid #14141e;overflow:hidden;display:flex;flex-direction:column;background:#0a0a0f"
-         class="lg:border-t-0 lg:border-l">
-      <!-- Count bar -->
-      <div style="padding:8px 12px 6px;font-size:11px;color:#444;border-bottom:1px solid #111;display:flex;justify-content:space-between;align-items:center">
-        <span><span id="channelCount">0</span> saluran</span>
-        <span style="font-size:10px;color:#333">HLS</span>
+    <div class="list-cell">
+      <!-- Mobile: category tabs inline here -->
+      <div class="lg:hidden" style="display:flex;gap:5px;padding:8px 10px;overflow-x:auto;background:#0a0a0f;border-bottom:1px solid #111;scrollbar-width:none;flex-shrink:0">
+        <button class="cat-pill active" data-cat="id">Indonesia</button>
+        <button class="cat-pill" data-cat="news">Berita</button>
+        <button class="cat-pill" data-cat="sports">Olahraga</button>
+        <button class="cat-pill" data-cat="movies">Film</button>
+        <button class="cat-pill" data-cat="all">Semua</button>
       </div>
-      <!-- List -->
-      <div id="channelList" style="flex:1;overflow-y:auto;padding:6px 8px;display:flex;flex-direction:column;gap:1px">
-        <div style="padding:20px;text-align:center;font-size:12px;color:#333">Memuat...</div>
+
+      <!-- Count bar -->
+      <div style="padding:7px 12px 6px;font-size:11px;color:#333;background:#0a0a0f;border-bottom:1px solid #0e0e18;display:flex;justify-content:space-between;align-items:center;flex-shrink:0">
+        <span style="color:#444"><span id="channelCount">0</span> saluran</span>
+        <span id="activeName" style="color:#2a2a3a;font-size:10px"></span>
+      </div>
+
+      <!-- Scrollable list -->
+      <div id="channelList" data-scroller style="flex:1;overflow-y:auto;padding:5px 8px;display:flex;flex-direction:column;gap:1px">
+        <div style="padding:24px;text-align:center;font-size:12px;color:#2a2a3a">Memuat…</div>
       </div>
     </div>
   </div>
@@ -240,12 +336,20 @@
     var videoEl   = $('videoPlayer');
     var listEl    = $('channelList');
     var countEl   = $('channelCount');
+    var activeNameEl = $('activeName');
     var loadingEl = $('playerLoading');
     var errorEl   = $('playerError');
     var errTxtEl  = $('playerErrorText');
     var nowTitle  = $('nowTitle');
     var nowLogo   = $('nowLogo');
     var nowPlaying = $('nowPlaying');
+
+    // Sync both category tab strips (desktop top + mobile list header)
+    function setActiveCat(cat) {
+      document.querySelectorAll('.cat-pill').forEach(function(b) {
+        b.classList.toggle('active', b.getAttribute('data-cat') === cat);
+      });
+    }
 
     // ── M3U parser ──
     function parseM3U(text) {
@@ -337,6 +441,7 @@
         nowLogo.style.display = 'none';
       }
       nowPlaying.style.opacity = '1';
+      if (activeNameEl) activeNameEl.textContent = '▶ ' + ch.name;
 
       // Hide overlays
       errorEl.classList.add('hidden');
@@ -387,8 +492,9 @@
 
     // ── Load category ──
     function loadCategory(cat) {
-      listEl.innerHTML = '<div style="padding:20px;text-align:center;font-size:12px;color:#333">Memuat...</div>';
+      listEl.innerHTML = '<div style="padding:24px;text-align:center;font-size:12px;color:#2a2a3a">Memuat…</div>';
       nowPlaying.style.opacity = '0';
+      if (activeNameEl) activeNameEl.textContent = '';
       if (hlsInst) { hlsInst.destroy(); hlsInst = null; }
       videoEl.src = '';
 
@@ -420,10 +526,22 @@
     $('catTabs').addEventListener('click', function(e) {
       var btn = e.target.closest('.cat-pill');
       if (!btn) return;
-      document.querySelectorAll('.cat-pill').forEach(function(b) { b.classList.remove('active'); });
-      btn.classList.add('active');
-      loadCategory(btn.getAttribute('data-cat'));
+      var cat = btn.getAttribute('data-cat');
+      setActiveCat(cat);
+      loadCategory(cat);
     });
+
+    // Mobile list-header tab strip (separate element, same handler)
+    var mobileTabs = document.querySelector('.list-cell .lg\\:hidden');
+    if (mobileTabs) {
+      mobileTabs.addEventListener('click', function(e) {
+        var btn = e.target.closest('.cat-pill');
+        if (!btn) return;
+        var cat = btn.getAttribute('data-cat');
+        setActiveCat(cat);
+        loadCategory(cat);
+      });
+    }
 
     $('searchInput').addEventListener('input', function() {
       applyFilter();
