@@ -1,17 +1,24 @@
 // Cloudflare Pages Function: /api/proxy?url=... (updated robust version)
 // Rate-limit state lives at module scope (per-instance, resets on cold start — intentional trade-off)
 // ---- RATE LIMIT: 60 req/min per IP ----
-const rateMap = new Map(); // ip -> [{ ts }]
+const rateMap = new Map(); // ip -> [ts]
 const RATE_LIMIT = 60;
 const RATE_WINDOW = 60_000; // ms
+const RATE_MAP_MAX = 5000; // ponytail: per-instance cap; use Workers KV for multi-instance
 function isRateLimited(ip) {
   const now = Date.now();
   const bucket = rateMap.get(ip) || [];
   const active = bucket.filter(ts => now - ts < RATE_WINDOW);
-  rateMap.set(ip, active);
-  if (active.length >= RATE_LIMIT) return true;
+  if (active.length >= RATE_LIMIT) { rateMap.set(ip, active); return true; }
   active.push(now);
   rateMap.set(ip, active);
+  // GC: evict oldest entries when map grows too large
+  if (rateMap.size > RATE_MAP_MAX) {
+    const oldest = [...rateMap.entries()]
+      .sort((a, b) => (a[1][0] || 0) - (b[1][0] || 0))
+      .slice(0, 500);
+    for (const [k] of oldest) rateMap.delete(k);
+  }
   return false;
 }
 
@@ -69,7 +76,8 @@ export async function onRequest(context) {
     const hostname = normalizedTarget.hostname.toLowerCase();
     // ---- PRIVATE IP BLOCK (SSRF) ----
     const ip = hostname.replace(/:\d+$/, '');
-    const privateIPPattern = /^(127\.|10\.|192\.168\.|172\.(1[6-9]|2[0-9]|3[01])\.|169\.254\.|^0\.|::1$|^(fc|fe|ff|:1$))/i;
+    // ponytail: no DNS rebinding check — add if serving sensitive internal networks
+    const privateIPPattern = /^(127\.|10\.|192\.168\.|172\.(1[6-9]|2[0-9]|3[01])\.|169\.254\.|0\.|::1$|fc[0-9a-f]{2}:|fe[89ab][0-9a-f]:)/i;
     if (privateIPPattern.test(ip)) {
       return new Response(JSON.stringify({ error: "Private / internal IP blocked" }), {
         status: 403, headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" }
@@ -83,16 +91,16 @@ export async function onRequest(context) {
     if (customReferrer) reqHeaders.set("Referer", customReferrer);
 
     let upstream;
-    const ctrl = new AbortController();
-    const to = setTimeout(() => ctrl.abort(), 7000);
     for (let attempt = 0; attempt < 2; attempt++) {
+      const ctrl = new AbortController();
+      const to = setTimeout(() => ctrl.abort(), 7000);
       try {
         upstream = await fetch(normalizedTarget.href, { headers: reqHeaders, signal: ctrl.signal });
+        clearTimeout(to);
         if (upstream.ok) break;
         upstream = null;
-      } catch (e) { upstream = null; if (e.name === 'AbortError') break; }
+      } catch (e) { clearTimeout(to); upstream = null; if (e.name === 'AbortError') break; }
     }
-    clearTimeout(to);
     if (!upstream) {
       return new Response(JSON.stringify({ error: "Upstream fetch failed after retries" }), {
         status: 502, headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" }
@@ -100,11 +108,12 @@ export async function onRequest(context) {
     }
 
     const contentType = upstream.headers.get("content-type") || "";
+    const bodyText = await upstream.text();
     const isPlaylist = contentType.includes("mpegurl") || /\.m3u8?($|[?#])/i.test(normalizedTarget.pathname)
-                      || /^\s*#EXTM3U|#EXT-X-|#EXTINF/.test(await upstream.clone().text());
+                      || /^\s*#EXTM3U|#EXT-X-|#EXTINF/.test(bodyText);
 
     if (isPlaylist) {
-      const text = await upstream.text();
+      const text = bodyText;
       const base = new URL(normalizedTarget.href);
 
       // ---- ADULT CONTENT FILTER (two-pass) ----
@@ -161,7 +170,7 @@ export async function onRequest(context) {
     const responseHeaders = new Headers(upstream.headers);
     responseHeaders.set("Access-Control-Allow-Origin", "*");
     responseHeaders.set("Access-Control-Allow-Methods", "GET, HEAD, OPTIONS");
-    return new Response(upstream.body, {
+    return new Response(bodyText, {
       status: upstream.status, statusText: upstream.statusText, headers: responseHeaders
     });
 
