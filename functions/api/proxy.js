@@ -30,6 +30,16 @@ export async function onRequest(context) {
                    request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ||
                    "unknown";
 
+  // OPTIONS exempt from rate limit (browser preflight must not consume quota)
+  if (request.method === "OPTIONS") {
+    return new Response(null, {
+      status: 204,
+      headers: { "Access-Control-Allow-Origin": "*",
+        "Access-Control-Allow-Methods": "GET, HEAD, OPTIONS",
+        "Access-Control-Allow-Headers": "*" }
+    });
+  }
+
   // Rate limit
   if (isRateLimited(clientIp)) {
     console.log(JSON.stringify({ event: "rate_limited", ip: clientIp, ts: Date.now() }));
@@ -37,15 +47,6 @@ export async function onRequest(context) {
       status: 429,
       headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*",
                  "Retry-After": "60" }
-    });
-  }
-
-  if (request.method === "OPTIONS") {
-    return new Response(null, {
-      status: 204,
-      headers: { "Access-Control-Allow-Origin": "*",
-        "Access-Control-Allow-Methods": "GET, HEAD, OPTIONS",
-        "Access-Control-Allow-Headers": "*" }
     });
   }
 
@@ -71,14 +72,10 @@ export async function onRequest(context) {
     }
 
     // ---- SSRF DEFENSE ----
-    // Allow: playlist source (iptv-org) + all segment/CDN hosts derived from playlist URLs
-    // Block: private IPs (already checked below), data:, javascript:, etc.
-    const hostname = normalizedTarget.hostname.toLowerCase();
-    // ---- PRIVATE IP BLOCK (SSRF) ----
-    const ip = hostname.replace(/:\d+$/, '');
-    // ponytail: no DNS rebinding check — add if serving sensitive internal networks
+    const hostname = normalizedTarget.hostname.toLowerCase(); // already strip port
     const privateIPPattern = /^(127\.|10\.|192\.168\.|172\.(1[6-9]|2[0-9]|3[01])\.|169\.254\.|0\.|::1$|fc[0-9a-f]{2}:|fe[89ab][0-9a-f]:)/i;
-    if (privateIPPattern.test(ip)) {
+    // ponytail: no DNS rebinding check — add if serving sensitive internal networks
+    if (privateIPPattern.test(hostname)) {
       return new Response(JSON.stringify({ error: "Private / internal IP blocked" }), {
         status: 403, headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" }
       });
@@ -108,9 +105,29 @@ export async function onRequest(context) {
     }
 
     const contentType = upstream.headers.get("content-type") || "";
-    const bodyText = await upstream.text();
-    const isPlaylist = contentType.includes("mpegurl") || /\.m3u8?($|[?#])/i.test(normalizedTarget.pathname)
-                      || /^\s*#EXTM3U|#EXT-X-|#EXTINF/.test(bodyText);
+    const likelyPlaylist = contentType.includes("mpegurl")
+      || /\.m3u8?($|[?#])/i.test(normalizedTarget.pathname);
+
+    let bodyText, isPlaylist;
+    if (likelyPlaylist) {
+      bodyText = await upstream.text();
+      isPlaylist = true;
+    } else {
+      const buf = await upstream.arrayBuffer();
+      const sniff = new TextDecoder().decode(buf.slice(0, 512));
+      if (/^\s*#EXTM3U|#EXT-X-|#EXTINF/.test(sniff)) {
+        bodyText = new TextDecoder().decode(buf);
+        isPlaylist = true;
+      } else {
+        // Binary pass-through — do not text-decode (would corrupt binary)
+        console.log(JSON.stringify({ event: "proxy_request", host: hostname, status: upstream.status,
+          ip: clientIp, target: normalizedTarget.href, ts: Date.now() }));
+        const responseHeaders = new Headers(upstream.headers);
+        responseHeaders.set("Access-Control-Allow-Origin", "*");
+        responseHeaders.set("Access-Control-Allow-Methods", "GET, HEAD, OPTIONS");
+        return new Response(buf, { status: upstream.status, statusText: upstream.statusText, headers: responseHeaders });
+      }
+    }
 
     if (isPlaylist) {
       const text = bodyText;
@@ -163,16 +180,6 @@ export async function onRequest(context) {
         }
       });
     }
-
-    // Non-playlist pass-through
-    console.log(JSON.stringify({ event: "proxy_request", host: hostname, status: upstream.status,
-      ip: clientIp, target: normalizedTarget.href, ts: Date.now() }));
-    const responseHeaders = new Headers(upstream.headers);
-    responseHeaders.set("Access-Control-Allow-Origin", "*");
-    responseHeaders.set("Access-Control-Allow-Methods", "GET, HEAD, OPTIONS");
-    return new Response(bodyText, {
-      status: upstream.status, statusText: upstream.statusText, headers: responseHeaders
-    });
 
   } catch (err) {
     console.log(JSON.stringify({ event: "proxy_error", error: err.message, ip: clientIp, target: targetUrl, ts: Date.now() }));
