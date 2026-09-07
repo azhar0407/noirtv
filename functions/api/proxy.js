@@ -134,7 +134,7 @@ export async function onRequest(context) {
       const base = new URL(normalizedTarget.href);
 
       // ---- ADULT CONTENT FILTER (two-pass) ----
-      const adultKeywords = ['adult','xxx','porn','sex','18+','nsfw','erotic','hentai','hot','playboy','hustler','redtube','pornhub'];
+      const adultKeywords = ['adult','xxx','porn','sex','18+','nsfw','erotic','hentai','playboy','hustler','redtube','pornhub'];
       const lines = text.split("\n");
       let dropNext = false; // true when previous line was adult #EXTINF → drop following URL
       const filtered = [];
@@ -180,6 +180,11 @@ export async function onRequest(context) {
         }
       });
     }
+
+    // Should not reach here — binary already returned above, playlist returned above
+    return new Response(JSON.stringify({ error: "Unhandled content type" }), {
+      status: 502, headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" }
+    });
 
   } catch (err) {
     console.log(JSON.stringify({ event: "proxy_error", error: err.message, ip: clientIp, target: targetUrl, ts: Date.now() }));

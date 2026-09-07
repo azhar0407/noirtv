@@ -136,8 +136,18 @@ ${UP}/espn.ts
 `;
   const res = await run(`${UP}/list.m3u`, body, 'application/x-mpegurl');
   const t = await res.text();
-  assert.ok(!t.includes('Hot Movies'), '18+ / Hot harus di-drop');
+  assert.ok(!t.includes('Hot Movies'), '18+ group harus di-drop');
   assert.ok(t.includes('ESPN'), 'sports channel tetap ada');
+});
+
+test('ADULT FILTER: "Hotstar" tidak false positive (hot dihapus dari keywords)', async () => {
+  const body = `#EXTM3U
+#EXTINF:-1 group-title="Entertainment",Hotstar Movies
+${UP}/hotstar.ts
+`;
+  const res = await run(`${UP}/list.m3u`, body, 'application/x-mpegurl');
+  const t = await res.text();
+  assert.ok(t.includes('Hotstar Movies'), 'Hotstar harus lolos filter');
 });
 
 test('RATE LIMIT: 61 request dari IP sama di window 60s -> 429', async () => {
