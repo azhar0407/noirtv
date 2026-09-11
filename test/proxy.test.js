@@ -177,3 +177,84 @@ test('RATE LIMIT: 61 request dari IP sama di window 60s -> 429', async () => {
   assert.equal(res61.status, 429, 'request ke-61 harus 429');
   assert.equal(res61.headers.get('retry-after'), '60');
 });
+
+test('INPUT BOUNDARY: target url kosong atau tanpa param -> 400', async () => {
+  const mod = await import(`../functions/api/proxy.js?bust_ib1=${Math.random()}`);
+  const resNoParam = await mod.onRequest({
+    request: new Request('https://noir-tv.pages.dev/api/proxy'),
+    env: {},
+  });
+  assert.equal(resNoParam.status, 400);
+  const jsonNoParam = await resNoParam.json();
+  assert.equal(jsonNoParam.error, 'Missing url parameter');
+
+  const resEmptyParam = await mod.onRequest({
+    request: new Request('https://noir-tv.pages.dev/api/proxy?url='),
+    env: {},
+  });
+  assert.equal(resEmptyParam.status, 400);
+  const jsonEmptyParam = await resEmptyParam.json();
+  assert.equal(jsonEmptyParam.error, 'Missing url parameter');
+});
+
+test('INPUT BOUNDARY: target url malformed syntax -> 400', async () => {
+  const mod = await import(`../functions/api/proxy.js?bust_ib2=${Math.random()}`);
+  const badUrls = ['http://[::1', 'not-a-url', '://missing-scheme', 'http://%zz%'];
+  for (const bad of badUrls) {
+    const res = await mod.onRequest({
+      request: new Request(`https://noir-tv.pages.dev/api/proxy?url=${encodeURIComponent(bad)}`),
+      env: {},
+    });
+    assert.equal(res.status, 400, `target ${bad} harus 400`);
+    const json = await res.json();
+    assert.equal(json.error, 'Invalid target URL');
+  }
+});
+
+test('INPUT BOUNDARY: skema selain http/https (javascript/data/file) -> 400', async () => {
+  const mod = await import(`../functions/api/proxy.js?bust_ib3=${Math.random()}`);
+  const schemes = ['javascript:alert(1)', 'data:text/html,pwnd', 'file:///etc/passwd'];
+  for (const s of schemes) {
+    const res = await mod.onRequest({
+      request: new Request(`https://noir-tv.pages.dev/api/proxy?url=${encodeURIComponent(s)}`),
+      env: {},
+    });
+    assert.equal(res.status, 400, `skema ${s} harus 400`);
+    const json = await res.json();
+    assert.equal(json.error, 'Unsupported URL scheme');
+  }
+});
+
+test('INPUT BOUNDARY: SSRF IPv6 loopback, ULA, link-local terkurung kurung siku -> 403', async () => {
+  const mod = await import(`../functions/api/proxy.js?bust_ib4=${Math.random()}`);
+  const targets = ['http://[::1]/status', 'http://[fc00::1]:8080/admin', 'http://[fe80::1]/internal'];
+  for (const t of targets) {
+    const res = await mod.onRequest({
+      request: new Request(`https://noir-tv.pages.dev/api/proxy?url=${encodeURIComponent(t)}`),
+      env: {},
+    });
+    assert.equal(res.status, 403, `SSRF IPv6 ${t} harus 403`);
+    const json = await res.json();
+    assert.equal(json.error, 'Private / internal IP blocked');
+  }
+});
+
+test('INPUT BOUNDARY: SSRF IPv4 batas 0.0.0.0, 172.16, 172.31 vs 172.32', async () => {
+  const mod = await import(`../functions/api/proxy.js?bust_ib5=${Math.random()}`);
+  const blocked = ['http://0.0.0.0/', 'http://172.16.0.1/', 'http://172.31.255.254/'];
+  for (const b of blocked) {
+    const res = await mod.onRequest({
+      request: new Request(`https://noir-tv.pages.dev/api/proxy?url=${encodeURIComponent(b)}`),
+      env: {},
+    });
+    assert.equal(res.status, 403, `SSRF IPv4 ${b} harus 403`);
+  }
+
+  // 172.32.0.1 adalah IP publik, tidak boleh terblokir oleh regex private IP
+  globalThis.fetch = async () => new Response('OK', { status: 200, headers: { 'Content-Type': 'text/plain' } });
+  const resPub = await mod.onRequest({
+    request: new Request(`https://noir-tv.pages.dev/api/proxy?url=${encodeURIComponent('http://172.32.0.1/live.ts')}`),
+    env: {},
+  });
+  assert.notEqual(resPub.status, 403, '172.32.0.1 bukan private IP');
+});

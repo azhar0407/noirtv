@@ -73,9 +73,10 @@ export async function onRequest(context) {
 
     // ---- SSRF DEFENSE ----
     const hostname = normalizedTarget.hostname.toLowerCase(); // already strip port
+    const cleanHost = hostname.replace(/^\[|\]$/g, '');
     const privateIPPattern = /^(127\.|10\.|192\.168\.|172\.(1[6-9]|2[0-9]|3[01])\.|169\.254\.|0\.|::1$|fc[0-9a-f]{2}:|fe[89ab][0-9a-f]:)/i;
     // ponytail: no DNS rebinding check — add if serving sensitive internal networks
-    if (privateIPPattern.test(hostname)) {
+    if (privateIPPattern.test(cleanHost)) {
       return new Response(JSON.stringify({ error: "Private / internal IP blocked" }), {
         status: 403, headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" }
       });
