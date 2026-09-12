@@ -444,7 +444,11 @@
         hlsInst.on(window.Hls.Events.ERROR, function(e, data) {
           if (data.fatal) {
             loadingEl.classList.add('hidden');
-            errTxtEl.textContent = 'Stream tidak tersedia';
+            var msg = 'Stream tidak tersedia';
+            if (data.details === window.Hls.ErrorDetails.MANIFEST_LOAD_ERROR && data.response && data.response.data) {
+              msg = String(data.response.data).slice(0, 140);
+            }
+            errTxtEl.textContent = msg;
             errorEl.classList.remove('hidden');
             if (autoAdvance) {
               setTimeout(function() {
