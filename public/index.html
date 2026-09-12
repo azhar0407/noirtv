@@ -267,7 +267,6 @@
     <!-- ── Player ── -->
     <div class="player-cell">
       <video id="videoPlayer" controls playsinline style="width:100%;height:100%;object-fit:contain"></video>
-      <iframe id="embedPlayer" style="display:none;width:100%;height:100%;border:none" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowfullscreen></iframe>
 
       <!-- Loading -->
       <div id="playerLoading" class="overlay hidden">
@@ -337,7 +336,6 @@
 
     var $    = function(id) { return document.getElementById(id); };
     var videoEl   = $('videoPlayer');
-    var embedEl   = $('embedPlayer');
     var listEl    = $('channelList');
     var countEl   = $('channelCount');
     var activeNameEl = $('activeName');
@@ -432,6 +430,48 @@
         .replace(/"/g, '&quot;');
     }
 
+    function startHls(targetUrl, autoAdvance) {
+      if (hlsInst) { hlsInst.destroy(); hlsInst = null; }
+
+      if (window.Hls && window.Hls.isSupported()) {
+        hlsInst = new window.Hls({ enableWorker: true, lowLatencyMode: false });
+        hlsInst.loadSource(targetUrl);
+        hlsInst.attachMedia(videoEl);
+        hlsInst.on(window.Hls.Events.MANIFEST_PARSED, function() {
+          loadingEl.classList.add('hidden');
+          videoEl.play().catch(function() {});
+        });
+        hlsInst.on(window.Hls.Events.ERROR, function(e, data) {
+          if (data.fatal) {
+            loadingEl.classList.add('hidden');
+            errTxtEl.textContent = 'Stream tidak tersedia';
+            errorEl.classList.remove('hidden');
+            if (autoAdvance) {
+              setTimeout(function() {
+                var nxt = activeIdx + 1;
+                if (nxt < filtered.length) playChannel(nxt);
+              }, 1500);
+            }
+          }
+        });
+      } else if (videoEl.canPlayType('application/vnd.apple.mpegurl')) {
+        videoEl.src = targetUrl;
+        videoEl.addEventListener('loadedmetadata', function() {
+          loadingEl.classList.add('hidden');
+          videoEl.play().catch(function() {});
+        }, { once: true });
+        videoEl.addEventListener('error', function() {
+          loadingEl.classList.add('hidden');
+          errTxtEl.textContent = 'Stream tidak tersedia';
+          errorEl.classList.remove('hidden');
+        }, { once: true });
+      } else {
+        loadingEl.classList.add('hidden');
+        errTxtEl.textContent = 'Browser tidak didukung';
+        errorEl.classList.remove('hidden');
+      }
+    }
+
     // ── Play ──
     function playChannel(idx) {
       if (idx < 0 || idx >= filtered.length) return;
@@ -449,63 +489,34 @@
       nowPlaying.style.opacity = '1';
       if (activeNameEl) activeNameEl.textContent = '▶ ' + ch.name;
 
-      // Hide overlays
+      // Reset overlays & video
       errorEl.classList.add('hidden');
       loadingEl.classList.remove('hidden');
-
+      videoEl.src = '';
       if (hlsInst) { hlsInst.destroy(); hlsInst = null; }
 
-      if (ch.type === 'embed') {
-        videoEl.src = '';
-        videoEl.style.display = 'none';
-        embedEl.style.display = 'block';
-        embedEl.onload = function() {
-          loadingEl.classList.add('hidden');
-        };
-        embedEl.src = ch.embed_url;
-      } else {
-        if (embedEl) {
-          embedEl.style.display = 'none';
-          embedEl.src = 'about:blank';
-        }
-        videoEl.style.display = 'block';
-        var targetUrl = '/api/proxy?url=' + encodeURIComponent(ch.url);
-
-        if (window.Hls && window.Hls.isSupported()) {
-          hlsInst = new window.Hls({ enableWorker: true, lowLatencyMode: false });
-          hlsInst.loadSource(targetUrl);
-          hlsInst.attachMedia(videoEl);
-          hlsInst.on(window.Hls.Events.MANIFEST_PARSED, function() {
-            loadingEl.classList.add('hidden');
-            videoEl.play().catch(function() {});
-          });
-          hlsInst.on(window.Hls.Events.ERROR, function(e, data) {
-            if (data.fatal) {
+      if (ch.channel_id) {
+        // Resolve stream directly from Vidio API
+        fetch('/api/vidio?stream_id=' + encodeURIComponent(ch.channel_id))
+          .then(function(r) { return r.json(); })
+          .then(function(data) {
+            if (data.status === 'ok' && data.hls_url && !data.is_drm) {
+              var target = '/api/proxy?url=' + encodeURIComponent(data.hls_url) + '&referrer=' + encodeURIComponent('https://www.vidio.com/');
+              startHls(target, false);
+            } else {
               loadingEl.classList.add('hidden');
-              errTxtEl.textContent = 'Stream tidak tersedia';
+              errTxtEl.textContent = data.is_drm ? 'Siaran Terproteksi DRM' : (data.message || 'Stream tidak tersedia');
               errorEl.classList.remove('hidden');
-              setTimeout(function() {
-                var nxt = activeIdx + 1;
-                if (nxt < filtered.length) playChannel(nxt);
-              }, 1500);
             }
-          });
-        } else if (videoEl.canPlayType('application/vnd.apple.mpegurl')) {
-          videoEl.src = targetUrl;
-          videoEl.addEventListener('loadedmetadata', function() {
+          })
+          .catch(function() {
             loadingEl.classList.add('hidden');
-            videoEl.play().catch(function() {});
-          }, { once: true });
-          videoEl.addEventListener('error', function() {
-            loadingEl.classList.add('hidden');
-            errTxtEl.textContent = 'Stream tidak tersedia';
+            errTxtEl.textContent = 'Gagal memuat stream';
             errorEl.classList.remove('hidden');
-          }, { once: true });
-        } else {
-          loadingEl.classList.add('hidden');
-          errTxtEl.textContent = 'Browser tidak didukung';
-          errorEl.classList.remove('hidden');
-        }
+          });
+      } else {
+        var targetUrl = '/api/proxy?url=' + encodeURIComponent(ch.url);
+        startHls(targetUrl, true);
       }
 
       renderList();
@@ -518,10 +529,6 @@
       if (activeNameEl) activeNameEl.textContent = '';
       if (hlsInst) { hlsInst.destroy(); hlsInst = null; }
       videoEl.src = '';
-      if (embedEl) {
-        embedEl.style.display = 'none';
-        embedEl.src = 'about:blank';
-      }
 
       if (cat === 'vidio') {
         fetch('/api/vidio?type=all')

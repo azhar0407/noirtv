@@ -1,5 +1,5 @@
 // Cloudflare Pages Function: /api/vidio
-// Dynamic catalog resolver for Vidio National TV & Live Sports.
+// Dynamic catalog & direct HLS stream resolver for Vidio channels.
 
 const AES_KEY_BYTES = new Uint8Array([
   100, 80, 114, 48, 81, 73, 109, 81, 55, 98, 99, 53, 111, 57, 76, 77,
@@ -13,17 +13,18 @@ const AES_IV_BYTES = new Uint8Array([
 let cachedEncApiKey = null;
 let keyExpiresAt = 0;
 
+// Cache resolved streams for 5 minutes
+const streamCache = new Map(); // id -> { hls_url, is_drm, expires }
+
 async function getEncryptedApiKey() {
   const now = Date.now();
   if (cachedEncApiKey && now < keyExpiresAt) {
     return cachedEncApiKey;
   }
 
-  // Handshake with api.vidio.com/auth
   const authRes = await fetch("https://api.vidio.com/auth", {
     method: "POST",
     headers: {
-      "User-Agent": "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Mobile Safari/537.36",
       "Origin": "https://m.vidio.com",
       "Referer": "https://m.vidio.com/"
     }
@@ -52,7 +53,6 @@ async function getEncryptedApiKey() {
     rawKeyBytes
   );
 
-  // Convert encrypted ArrayBuffer to base64
   let binary = "";
   const bytes = new Uint8Array(encBuffer);
   for (let i = 0; i < bytes.byteLength; i++) {
@@ -61,8 +61,61 @@ async function getEncryptedApiKey() {
   const encBase64 = btoa(binary);
 
   cachedEncApiKey = encBase64;
-  keyExpiresAt = now + 30 * 60 * 1000; // Cache 30 mins
+  keyExpiresAt = now + 30 * 60 * 1000;
   return encBase64;
+}
+
+async function resolveDirectStream(channelId) {
+  const now = Date.now();
+  const cached = streamCache.get(channelId);
+  if (cached && now < cached.expires) {
+    return cached;
+  }
+
+  const apiKey = await getEncryptedApiKey();
+
+  // Fetch embed page to extract fresh clientId & signature
+  const embedRes = await fetch(`https://www.vidio.com/live/${channelId}/embed`);
+  if (!embedRes.ok) {
+    throw new Error(`Embed page error: HTTP ${embedRes.status}`);
+  }
+
+  const html = await embedRes.text();
+  const match = html.match(/streamSignature\\":\{\\"clientId\\":\\"([^"\\]+)\\",\\"signature\\":\\"([^"\\]+)\\"/);
+  if (!match) {
+    throw new Error("Stream signature not found in embed page");
+  }
+
+  const clientId = match[1];
+  const signature = match[2];
+
+  // Request actual stream URL from Vidio API without browser origin headers
+  const streamRes = await fetch(`https://api.vidio.com/livestreamings/${channelId}/stream?initialize=true`, {
+    headers: {
+      "X-Api-Key": apiKey,
+      "X-Secure-Level": "2",
+      "X-API-Platform": "web-mobile",
+      "Accept-Language": "id",
+      "X-Client": clientId,
+      "X-Signature": signature,
+      "luws": "B93C4E36-1234-5678-ABCD-EF0123456789_"
+    }
+  });
+
+  if (!streamRes.ok) {
+    throw new Error(`Stream API rejected: HTTP ${streamRes.status}`);
+  }
+
+  const data = await streamRes.json();
+  const attr = data.data?.attributes || {};
+  const result = {
+    hls_url: attr.hls || null,
+    is_drm: Boolean(attr.is_drm),
+    expires: now + (attr.expires_in ? Math.min(attr.expires_in * 500, 10 * 60 * 1000) : 5 * 60 * 1000)
+  };
+
+  streamCache.set(channelId, result);
+  return result;
 }
 
 export async function onRequest(context) {
@@ -80,6 +133,42 @@ export async function onRequest(context) {
   }
 
   const url = new URL(request.url);
+  const streamId = url.searchParams.get("stream_id");
+
+  // Single stream resolution mode
+  if (streamId) {
+    try {
+      const stream = await resolveDirectStream(streamId);
+      return new Response(JSON.stringify({
+        status: "ok",
+        channel_id: streamId,
+        hls_url: stream.hls_url,
+        is_drm: stream.is_drm
+      }), {
+        status: 200,
+        headers: {
+          "Content-Type": "application/json; charset=utf-8",
+          "Access-Control-Allow-Origin": "*",
+          "Cache-Control": "public, max-age=60"
+        }
+      });
+    } catch (err) {
+      console.error(`Resolve stream error for ${streamId}:`, err);
+      return new Response(JSON.stringify({
+        status: "error",
+        channel_id: streamId,
+        message: err.message
+      }), {
+        status: 502,
+        headers: {
+          "Content-Type": "application/json",
+          "Access-Control-Allow-Origin": "*"
+        }
+      });
+    }
+  }
+
+  // Catalog list mode
   const type = url.searchParams.get("type") || "all";
 
   try {
@@ -88,10 +177,7 @@ export async function onRequest(context) {
       "X-Api-Key": apiKey,
       "X-Secure-Level": "2",
       "X-API-Platform": "web-mobile",
-      "Accept-Language": "id",
-      "User-Agent": "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Mobile Safari/537.36",
-      "Origin": "https://m.vidio.com",
-      "Referer": "https://m.vidio.com/"
+      "Accept-Language": "id"
     };
 
     const sectionsToFetch = [];
@@ -115,14 +201,7 @@ export async function onRequest(context) {
           const attr = item.attributes || {};
           const liveUrl = attr.web_url || "";
           const idMatch = liveUrl.match(/\/live\/(\d+)(?:-([a-zA-Z0-9_-]+))?/);
-          const scheduleMatch = liveUrl.match(/schedule_id=(\d+)/);
-          const channelId = idMatch ? idMatch[1] : item.id;
-          const scheduleId = scheduleMatch ? scheduleMatch[1] : null;
-
-          let embedUrl = `https://www.vidio.com/live/${channelId}/embed?autoplay=true`;
-          if (scheduleId) {
-            embedUrl += `&schedule_id=${scheduleId}`;
-          }
+          const channelId = idMatch ? idMatch[1] : (item.id || "").replace(/[^0-9]/g, "");
 
           const isNational = sec.id === "30309";
           const name = isNational
@@ -136,14 +215,13 @@ export async function onRequest(context) {
 
           return {
             id: `vidio-${item.id}`,
+            channel_id: channelId,
             name: name,
             program: program,
             group: sec.group,
             logo: logo,
-            type: "embed",
-            embed_url: embedUrl,
+            type: "vidio_direct",
             watch_url: liveUrl,
-            stream_url: attr.stream_url || null,
             is_live: true
           };
         });

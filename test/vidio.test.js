@@ -25,7 +25,19 @@ test('Vidio API: GET /api/vidio returns valid channel structure', async () => {
 
   const ch = data.channels[0];
   assert.ok(ch.id, 'channel must have id');
+  assert.ok(ch.channel_id, 'channel must have channel_id');
   assert.ok(ch.name, 'channel must have name');
-  assert.ok(ch.embed_url, 'channel must have embed_url');
-  assert.ok(ch.embed_url.includes('vidio.com/live/'), 'embed_url must point to vidio live');
+});
+
+test('Vidio API: GET /api/vidio?stream_id=204 resolves direct HLS stream', async () => {
+  const mod = await import('../functions/api/vidio.js');
+  const res = await mod.onRequest({
+    request: new Request('https://noir-tv.pages.dev/api/vidio?stream_id=204', { method: 'GET' })
+  });
+  assert.equal(res.status, 200);
+  const data = await res.json();
+  assert.equal(data.status, 'ok');
+  assert.equal(data.channel_id, '204');
+  assert.equal(data.is_drm, false);
+  assert.ok(data.hls_url && data.hls_url.includes('.m3u8'), 'hls_url must be a valid .m3u8 link');
 });
