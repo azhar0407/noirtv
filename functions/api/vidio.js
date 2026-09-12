@@ -13,9 +13,6 @@ const AES_IV_BYTES = new Uint8Array([
 let cachedEncApiKey = null;
 let keyExpiresAt = 0;
 
-// Cache resolved streams for 5 minutes
-const streamCache = new Map(); // id -> { hls_url, is_drm, expires }
-
 async function getEncryptedApiKey() {
   const now = Date.now();
   if (cachedEncApiKey && now < keyExpiresAt) {
@@ -65,60 +62,6 @@ async function getEncryptedApiKey() {
   return encBase64;
 }
 
-async function resolveDirectStream(channelId) {
-  const now = Date.now();
-  const cached = streamCache.get(channelId);
-  if (cached && now < cached.expires) {
-    return cached;
-  }
-
-  const apiKey = await getEncryptedApiKey();
-
-  // Fetch embed page to extract fresh clientId & signature
-  const embedRes = await fetch(`https://www.vidio.com/live/${channelId}/embed`);
-  if (!embedRes.ok) {
-    throw new Error(`Embed page error: HTTP ${embedRes.status}`);
-  }
-
-  const html = await embedRes.text();
-  const match = html.match(/streamSignature\\":\{\\"clientId\\":\\"([^"\\]+)\\",\\"signature\\":\\"([^"\\]+)\\"/);
-  if (!match) {
-    throw new Error("Stream signature not found in embed page");
-  }
-
-  const clientId = match[1];
-  const signature = match[2];
-
-  // Request actual stream URL from Vidio API without browser origin headers
-  const streamRes = await fetch(`https://api.vidio.com/livestreamings/${channelId}/stream?initialize=true`, {
-    headers: {
-      "X-Api-Key": apiKey,
-      "X-Secure-Level": "2",
-      "X-API-Platform": "web-mobile",
-      "Accept-Language": "id",
-      "X-Client": clientId,
-      "X-Signature": signature,
-      "luws": "B93C4E36-1234-5678-ABCD-EF0123456789_"
-    }
-  });
-
-  if (!streamRes.ok) {
-    const errBody = await streamRes.text().catch(() => "");
-    throw new Error(`Stream API rejected: HTTP ${streamRes.status} - ${errBody}`);
-  }
-
-  const data = await streamRes.json();
-  const attr = data.data?.attributes || {};
-  const result = {
-    hls_url: attr.hls || null,
-    is_drm: Boolean(attr.is_drm),
-    expires: now + (attr.expires_in ? Math.min(attr.expires_in * 500, 10 * 60 * 1000) : 5 * 60 * 1000)
-  };
-
-  streamCache.set(channelId, result);
-  return result;
-}
-
 export async function onRequest(context) {
   const { request } = context;
 
@@ -138,35 +81,19 @@ export async function onRequest(context) {
 
   // Single stream resolution mode
   if (streamId) {
-    try {
-      const stream = await resolveDirectStream(streamId);
-      return new Response(JSON.stringify({
-        status: "ok",
-        channel_id: streamId,
-        hls_url: stream.hls_url,
-        is_drm: stream.is_drm
-      }), {
-        status: 200,
-        headers: {
-          "Content-Type": "application/json; charset=utf-8",
-          "Access-Control-Allow-Origin": "*",
-          "Cache-Control": "public, max-age=60"
-        }
-      });
-    } catch (err) {
-      console.error(`Resolve stream error for ${streamId}:`, err);
-      return new Response(JSON.stringify({
-        status: "error",
-        channel_id: streamId,
-        message: err.message
-      }), {
-        status: 502,
-        headers: {
-          "Content-Type": "application/json",
-          "Access-Control-Allow-Origin": "*"
-        }
-      });
-    }
+    return new Response(JSON.stringify({
+      status: "ok",
+      channel_id: streamId,
+      hls_url: `https://tv.161.118.236.126.nip.io/index.m3u8?ch=${encodeURIComponent(streamId)}`,
+      is_drm: false
+    }), {
+      status: 200,
+      headers: {
+        "Content-Type": "application/json; charset=utf-8",
+        "Access-Control-Allow-Origin": "*",
+        "Cache-Control": "public, max-age=300"
+      }
+    });
   }
 
   // Catalog list mode
@@ -222,6 +149,7 @@ export async function onRequest(context) {
             group: sec.group,
             logo: logo,
             type: "vidio_direct",
+            url: `https://tv.161.118.236.126.nip.io/index.m3u8?ch=${channelId}`,
             watch_url: liveUrl,
             is_live: true
           };

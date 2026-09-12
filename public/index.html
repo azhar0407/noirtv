@@ -496,24 +496,8 @@
       if (hlsInst) { hlsInst.destroy(); hlsInst = null; }
 
       if (ch.channel_id) {
-        // Resolve stream directly from Vidio API
-        fetch('/api/vidio?stream_id=' + encodeURIComponent(ch.channel_id))
-          .then(function(r) { return r.json(); })
-          .then(function(data) {
-            if (data.status === 'ok' && data.hls_url && !data.is_drm) {
-              var target = '/api/proxy?url=' + encodeURIComponent(data.hls_url) + '&referrer=' + encodeURIComponent('https://www.vidio.com/');
-              startHls(target, false);
-            } else {
-              loadingEl.classList.add('hidden');
-              errTxtEl.textContent = data.is_drm ? 'Siaran Terproteksi DRM' : (data.message || 'Stream tidak tersedia');
-              errorEl.classList.remove('hidden');
-            }
-          })
-          .catch(function() {
-            loadingEl.classList.add('hidden');
-            errTxtEl.textContent = 'Gagal memuat stream';
-            errorEl.classList.remove('hidden');
-          });
+        var target = 'https://tv.161.118.236.126.nip.io/index.m3u8?ch=' + encodeURIComponent(ch.channel_id);
+        startHls(target, false);
       } else {
         var targetUrl = '/api/proxy?url=' + encodeURIComponent(ch.url);
         startHls(targetUrl, true);
