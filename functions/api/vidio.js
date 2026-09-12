@@ -103,7 +103,8 @@ async function resolveDirectStream(channelId) {
   });
 
   if (!streamRes.ok) {
-    throw new Error(`Stream API rejected: HTTP ${streamRes.status}`);
+    const errBody = await streamRes.text().catch(() => "");
+    throw new Error(`Stream API rejected: HTTP ${streamRes.status} - ${errBody}`);
   }
 
   const data = await streamRes.json();
