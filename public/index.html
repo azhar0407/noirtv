@@ -253,7 +253,8 @@
   <!-- ── Categories (desktop only — hidden on mobile, inline on mobile list header) ── -->
   <div id="catTabs" style="display:none;gap:5px;padding:8px 14px;overflow-x:auto;background:#0a0a0f;border-bottom:1px solid #111;scrollbar-width:none"
        class="lg:!flex">
-    <button class="cat-pill active" data-cat="id">Indonesia</button>
+    <button class="cat-pill active" data-cat="vidio">Vidio Live</button>
+    <button class="cat-pill" data-cat="id">Indonesia</button>
     <button class="cat-pill" data-cat="news">Berita</button>
     <button class="cat-pill" data-cat="sports">Olahraga</button>
     <button class="cat-pill" data-cat="movies">Film</button>
@@ -266,6 +267,7 @@
     <!-- ── Player ── -->
     <div class="player-cell">
       <video id="videoPlayer" controls playsinline style="width:100%;height:100%;object-fit:contain"></video>
+      <iframe id="embedPlayer" style="display:none;width:100%;height:100%;border:none" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowfullscreen></iframe>
 
       <!-- Loading -->
       <div id="playerLoading" class="overlay hidden">
@@ -293,7 +295,8 @@
     <div class="list-cell">
       <!-- Mobile: category tabs inline here -->
       <div class="lg:hidden" style="display:flex;gap:5px;padding:8px 10px;overflow-x:auto;background:#0a0a0f;border-bottom:1px solid #111;scrollbar-width:none;flex-shrink:0">
-        <button class="cat-pill active" data-cat="id">Indonesia</button>
+        <button class="cat-pill active" data-cat="vidio">Vidio Live</button>
+        <button class="cat-pill" data-cat="id">Indonesia</button>
         <button class="cat-pill" data-cat="news">Berita</button>
         <button class="cat-pill" data-cat="sports">Olahraga</button>
         <button class="cat-pill" data-cat="movies">Film</button>
@@ -334,6 +337,7 @@
 
     var $    = function(id) { return document.getElementById(id); };
     var videoEl   = $('videoPlayer');
+    var embedEl   = $('embedPlayer');
     var listEl    = $('channelList');
     var countEl   = $('channelCount');
     var activeNameEl = $('activeName');
@@ -384,6 +388,7 @@
       filtered = q
         ? channels.filter(function(ch) {
             return ch.name.toLowerCase().indexOf(q) !== -1 ||
+                   (ch.program && ch.program.toLowerCase().indexOf(q) !== -1) ||
                    (ch.group && ch.group.toLowerCase().indexOf(q) !== -1);
           })
         : channels.slice();
@@ -402,6 +407,7 @@
         var ch  = filtered[i];
         var isA = i === activeIdx;
         var initials = ch.name.substring(0, 2).toUpperCase();
+        var subText = ch.program ? (ch.program + ' • ' + (ch.group || 'Live')) : (ch.group || 'Live');
         html +=
           '<button class="ch-btn' + (isA ? ' active' : '') + '" data-idx="' + i + '">' +
             (ch.logo
@@ -410,7 +416,7 @@
             ) +
             '<div style="flex:1;min-width:0">' +
               '<div class="ch-name">' + escHtml(ch.name) + '</div>' +
-              '<div class="ch-group">' + escHtml(ch.group || 'Live') + '</div>' +
+              '<div class="ch-group" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + escHtml(subText) + '</div>' +
             '</div>' +
             '<div class="ch-dot"></div>' +
           '</button>';
@@ -433,7 +439,7 @@
       activeIdx = idx;
 
       // Now-playing overlay
-      nowTitle.textContent = ch.name;
+      nowTitle.textContent = ch.name + (ch.program ? ' — ' + ch.program : '');
       if (ch.logo) {
         nowLogo.src = ch.logo;
         nowLogo.style.display = 'block';
@@ -447,44 +453,59 @@
       errorEl.classList.add('hidden');
       loadingEl.classList.remove('hidden');
 
-      var targetUrl = '/api/proxy?url=' + encodeURIComponent(ch.url);
-
       if (hlsInst) { hlsInst.destroy(); hlsInst = null; }
 
-      if (window.Hls && window.Hls.isSupported()) {
-        hlsInst = new window.Hls({ enableWorker: true, lowLatencyMode: false });
-        hlsInst.loadSource(targetUrl);
-        hlsInst.attachMedia(videoEl);
-        hlsInst.on(window.Hls.Events.MANIFEST_PARSED, function() {
+      if (ch.type === 'embed') {
+        videoEl.src = '';
+        videoEl.style.display = 'none';
+        embedEl.style.display = 'block';
+        embedEl.onload = function() {
           loadingEl.classList.add('hidden');
-          videoEl.play().catch(function() {});
-        });
-        hlsInst.on(window.Hls.Events.ERROR, function(e, data) {
-          if (data.fatal) {
+        };
+        embedEl.src = ch.embed_url;
+      } else {
+        if (embedEl) {
+          embedEl.style.display = 'none';
+          embedEl.src = 'about:blank';
+        }
+        videoEl.style.display = 'block';
+        var targetUrl = '/api/proxy?url=' + encodeURIComponent(ch.url);
+
+        if (window.Hls && window.Hls.isSupported()) {
+          hlsInst = new window.Hls({ enableWorker: true, lowLatencyMode: false });
+          hlsInst.loadSource(targetUrl);
+          hlsInst.attachMedia(videoEl);
+          hlsInst.on(window.Hls.Events.MANIFEST_PARSED, function() {
+            loadingEl.classList.add('hidden');
+            videoEl.play().catch(function() {});
+          });
+          hlsInst.on(window.Hls.Events.ERROR, function(e, data) {
+            if (data.fatal) {
+              loadingEl.classList.add('hidden');
+              errTxtEl.textContent = 'Stream tidak tersedia';
+              errorEl.classList.remove('hidden');
+              setTimeout(function() {
+                var nxt = activeIdx + 1;
+                if (nxt < filtered.length) playChannel(nxt);
+              }, 1500);
+            }
+          });
+        } else if (videoEl.canPlayType('application/vnd.apple.mpegurl')) {
+          videoEl.src = targetUrl;
+          videoEl.addEventListener('loadedmetadata', function() {
+            loadingEl.classList.add('hidden');
+            videoEl.play().catch(function() {});
+          }, { once: true });
+          videoEl.addEventListener('error', function() {
             loadingEl.classList.add('hidden');
             errTxtEl.textContent = 'Stream tidak tersedia';
             errorEl.classList.remove('hidden');
-            setTimeout(function() {
-              var nxt = activeIdx + 1;
-              if (nxt < filtered.length) playChannel(nxt);
-            }, 1500);
-          }
-        });
-      } else if (videoEl.canPlayType('application/vnd.apple.mpegurl')) {
-        videoEl.src = targetUrl;
-        videoEl.addEventListener('loadedmetadata', function() {
+          }, { once: true });
+        } else {
           loadingEl.classList.add('hidden');
-          videoEl.play().catch(function() {});
-        }, { once: true });
-        videoEl.addEventListener('error', function() {
-          loadingEl.classList.add('hidden');
-          errTxtEl.textContent = 'Stream tidak tersedia';
+          errTxtEl.textContent = 'Browser tidak didukung';
           errorEl.classList.remove('hidden');
-        }, { once: true });
-      } else {
-        loadingEl.classList.add('hidden');
-        errTxtEl.textContent = 'Browser tidak didukung';
-        errorEl.classList.remove('hidden');
+        }
       }
 
       renderList();
@@ -497,6 +518,28 @@
       if (activeNameEl) activeNameEl.textContent = '';
       if (hlsInst) { hlsInst.destroy(); hlsInst = null; }
       videoEl.src = '';
+      if (embedEl) {
+        embedEl.style.display = 'none';
+        embedEl.src = 'about:blank';
+      }
+
+      if (cat === 'vidio') {
+        fetch('/api/vidio?type=all')
+          .then(function(res) {
+            if (!res.ok) throw new Error('HTTP ' + res.status);
+            return res.json();
+          })
+          .then(function(data) {
+            channels = data.channels || [];
+            applyFilter();
+            renderList();
+            if (filtered.length > 0) playChannel(0);
+          })
+          .catch(function(err) {
+            listEl.innerHTML = '<div style="padding:20px;text-align:center;font-size:12px;color:#3a2020">Gagal memuat Vidio Live (' + escHtml(err.message) + ')</div>';
+          });
+        return;
+      }
 
       var src = '/api/proxy?url=' + encodeURIComponent(SOURCES[cat]);
       var req = new XMLHttpRequest();
@@ -554,7 +597,7 @@
     });
 
     // ── Init ──
-    loadCategory('id');
+    loadCategory('vidio');
   })();
   </script>
 </body>
